@@ -337,7 +337,7 @@ void polycrystalExample( const std::string filename )
                                              memory_space{}, horizon, K_within,
                                              G0_within, sigma_y_within);
     CabanaPD::ForceModel force_model_between( model_type{}, mechanics_type{}, 
-                                              memory_space{}, horizon, K_between
+                                              memory_space{}, horizon, K_between,
                                               G0_between, sigma_y_between);
 
     // ====================================================
