@@ -7,7 +7,7 @@
     "timestep_safety_factor" : {"value": 0.85},
     "output_frequency"       : {"value": 400},
     "output_reference"       : {"value": false},
-    "grip_velocity"          : {"value": 1e-1, "unit": "m/s"},
+    "grip_velocity"          : {"value": 1e-2, "unit": "m/s"},
     
     "density"                : {"value": [1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200, 1200], "unit": "kg/m^3"},
     "elastic_modulus"        : {"value": [3e+9, 3e+9], "unit": "Pa"},
