@@ -1,7 +1,7 @@
 {
-    "num_cells"              : {"value": [230, 50, 50]},
-    "system_size"            : {"value": [0.150, 0.030, 0.030], "unit": "m"},
-    "horizon"                : {"value": 0.002, "unit": "m"},
+    "num_cells"              : {"value": [100, 24, 24]},
+    "system_size"            : {"value": [0.015, 0.003, 0.003], "unit": "m"},
+    "horizon"                : {"value": 0.0005, "unit": "m"},
     "final_time"             : {"value": 1.5e-2, "unit": "s"},
     "timestep"               : {"value": 3.0e-7, "unit": "s"},
     "timestep_safety_factor" : {"value": 0.85},
