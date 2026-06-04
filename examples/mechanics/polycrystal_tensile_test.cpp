@@ -353,6 +353,7 @@ void polycrystalExample( const std::string filename )
     auto rho = particles.sliceDensity();
     auto x = particles.sliceReferencePosition();
     auto type = particles.sliceType();
+    auto nofail = particles.sliceNoFail();
 
     auto init_functor = KOKKOS_LAMBDA( const int pid )
     {
@@ -361,6 +362,11 @@ void polycrystalExample( const std::string filename )
         int grainIndex = 0;
         for ( int i = 0; i < NUM_GRAINS; ++i )
         {
+            // No-fail zone
+            if ( x( pid, 0 ) <= low_corner[0] + horizon ||
+                x( pid, 0 ) >= high_corner[0] - horizon )
+                nofail( pid ) = 1;
+            
             const Kokkos::Array<double, 3>& pos = grainPos[i];
             double distX = x( pid, 0 ) - pos[0];
             double distY = x( pid, 1 ) - pos[1];
