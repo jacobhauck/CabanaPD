@@ -134,7 +134,8 @@ ReadViewType readBinaryField(std::ifstream &input_data_stream, int nx, int ny, i
 Kokkos::View<int***, memory_space> loadGrainIDs( 
     const std::string& fileName, 
     Kokkos::Array<double, 3>& outLowCorner,
-    Kokkos::Array<double, 3>& outHighCorner 
+    Kokkos::Array<double, 3>& outHighCorner,
+    Kokkos::Array<int, 3>& outGridShape
 )
 {
     // Open input file
@@ -156,9 +157,9 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     std::vector<std::string> dims_read;
     getline(grainFile, read_line);
     splitString(read_line, dims_read, 4, ' ');
-    const int nx = std::stoi(dims_read[1]);
-    const int ny = std::stoi(dims_read[2]);
-    const int nz = std::stoi(dims_read[3]);
+    outGridShape[0] = std::stoi(dims_read[1]);
+    outGridShape[1] = std::stoi(dims_read[2]);
+    outGridShape[2] = std::stoi(dims_read[3]);
 
     // Get origin location
     std::vector<std::string> origin_read;
@@ -177,9 +178,9 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     const double dz = std::stod(vox_spacing_read[3]);
 
     // Compute domain size
-    outHighCorner[0] = outLowCorner[0] + nx * dx;
-    outHighCorner[1] = outLowCorner[1] + ny * dy;
-    outHighCorner[2] = outLowCorner[2] + nz * dz;
+    outHighCorner[0] = outLowCorner[0] + outGridShape[0] * dx;
+    outHighCorner[1] = outLowCorner[1] + outGridShape[1] * dy;
+    outHighCorner[2] = outLowCorner[2] + outGridShape[2] * dz;
     
     // Ignore line
     skipLines(grainFile, 1);
@@ -202,18 +203,18 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
 
     if ( isBinary )
     {
-        grainIDhost = readBinaryField<Kokkos::View<int***, Kokkos::HostSpace>, int>(grainFile, nx, ny, nz, "GrainID");
+        grainIDsHost = readBinaryField<Kokkos::View<int***, Kokkos::HostSpace>, int>(grainFile, nx, ny, nz, "GrainID");
     }
     else
     {
-        grainIDhost = readASCIIField<Kokkos::View<int***, Kokkos::HostSpace>>(grainFile, nx, ny, nz, "GrainID");
+        grainIDsHost = readASCIIField<Kokkos::View<int***, Kokkos::HostSpace>>(grainFile, nx, ny, nz, "GrainID");
     }
 
     // Copy to memory_space
     Kokkos::View<int***, memory_space> grainIDs("Grain IDs", nz, nx, ny);
     Kokkos::deep_copy(grainIDsHost, grainIDs);
 
-    return grainIDS;
+    return grainIDs;
 }
 
 // Simulate a crack in a polycrystal
@@ -258,8 +259,9 @@ void polycrystalImportExample( const std::string& filename )
     // during intialization
     Kokkos::Array<double, 3> low_corner;
     Kokkos::Array<double, 3> high_corner;
+    Kokkos::Array<int, 3> grain_grid_shape;
     Kokkos::View<int***, memory_space> grainIDs = loadGrainIDs(
-        inputs["grain_file"], low_corner, high_corner
+        inputs["grain_file"], low_corner, high_corner, grain_grid_shape
     );
 
     // Calculate loaded grid spacing for interpolation to use later
