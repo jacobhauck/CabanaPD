@@ -321,13 +321,13 @@ void polycrystalImportExample( const std::string& filename )
             nofail( pid ) = 1;
 
         // Nearest-neighbor interpolation to get grain type
-        const int xGrainIndex = Kokkos::floor((x(pid, 0) - low_corner[0]) / grain_dx[0]);
+        int xGrainIndex = Kokkos::floor((x(pid, 0) - low_corner[0]) / grain_dx[0]);
         xGrainIndex = xGrainIndex < grain_grid_shape[0] ? xGrainIndex : grain_grid_shape[0] - 1;
         
-        const int yGrainIndex = Kokkos::floor((x(pid, 1) - low_corner[1]) / grain_dx[1]);
+        int yGrainIndex = Kokkos::floor((x(pid, 1) - low_corner[1]) / grain_dx[1]);
         yGrainIndex = yGrainIndex < grain_grid_shape[1] ? yGrainIndex : grain_grid_shape[1] - 1;
 
-        const int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
+        int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
         zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
 
         // Set density and material type
