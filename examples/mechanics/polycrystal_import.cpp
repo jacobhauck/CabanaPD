@@ -165,9 +165,12 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     std::vector<std::string> origin_read;
     getline(grainFile, read_line);
     splitString(read_line, origin_read, 4, ' ');
-    outLowCorner[0] = std::stod(origin_read[1]);
-    outLowCorner[1] = std::stod(origin_read[2]);
-    outLowCorner[2] = std::stod(origin_read[3]);
+    const int nx = std::stod(origin_read[1]);
+    const int ny = std::stod(origin_read[2]);
+    const int nz = std::stod(origin_read[3]);
+    outGridShape[0] = nx;
+    outGridShape[1] = ny;
+    outGridShape[2] = nz;
 
     // Get voxel spacing
     std::vector<std::string> vox_spacing_read;
@@ -178,9 +181,9 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     const double dz = std::stod(vox_spacing_read[3]);
 
     // Compute domain size
-    outHighCorner[0] = outLowCorner[0] + outGridShape[0] * dx;
-    outHighCorner[1] = outLowCorner[1] + outGridShape[1] * dy;
-    outHighCorner[2] = outLowCorner[2] + outGridShape[2] * dz;
+    outHighCorner[0] = outLowCorner[0] + nx * dx;
+    outHighCorner[1] = outLowCorner[1] + ny * dy;
+    outHighCorner[2] = outLowCorner[2] + nz * dz;
     
     // Ignore line
     skipLines(grainFile, 1);
@@ -198,7 +201,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     // Read grain ID data from file into a host view
     Kokkos::View<int***, Kokkos::HostSpace> grainIDsHost(
         Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
-        nz, nx, ny
+        nz, ny, nx
     );
 
     if ( isBinary )
