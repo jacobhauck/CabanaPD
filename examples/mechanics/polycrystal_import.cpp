@@ -266,9 +266,9 @@ void polycrystalImportExample( const std::string& filename )
 
     // Calculate loaded grid spacing for interpolation to use later
     Kokkos::Array<double, 3> grain_dx;
-    grain_dx[0] = (high_corner[0] - low_corner[0]) / loadGrainIDs.extent(0);
-    grain_dx[1] = (high_corner[1] - low_corner[1]) / loadGrainIDs.extent(1);
-    grain_dx[2] = (high_corner[2] - low_corner[2]) / loadGrainIDs.extent(2);
+    grain_dx[0] = (high_corner[0] - low_corner[0]) / grain_grid_shape[0];
+    grain_dx[1] = (high_corner[1] - low_corner[1]) / grain_grid_shape[1];
+    grain_dx[2] = (high_corner[2] - low_corner[2]) / grain_grid_shape[2];
 
     // ====================================================
     //                   Force models
@@ -319,13 +319,13 @@ void polycrystalImportExample( const std::string& filename )
 
         // Nearest-neighbor interpolation to get grain type
         const int xGrainIndex = Kokkos::floor((x(pid, 0) - low_corner[0]) / grain_dx[0]);
-        xGrainIndex = Kokkos::min(xGrainIndex, grainIDs.extent(0) - 1);
+        xGrainIndex = xGrainIndex < grain_grid_shape[0] ? xGrainIndex : grain_grid_shape[0] - 1;
         
         const int yGrainIndex = Kokkos::floor((x(pid, 1) - low_corner[1]) / grain_dx[1]);
-        yGrainIndex = Kokkos::min(yGrainIndex, grainIDs.extent(1) - 1);
+        yGrainIndex = yGrainIndex < grain_grid_shape[1] ? yGrainIndex : grain_grid_shape[1] - 1;
 
         const int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
-        zGrainIndex = Kokkos::min(zGrainIndex, grainIDs.extent(2) - 1);
+        zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
 
         // Set density and material type
         type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
