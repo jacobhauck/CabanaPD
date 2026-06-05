@@ -10,53 +10,16 @@
 
 #include <CabanaPD.hpp>
 
-//*****************************************************************************/
-// Remove whitespace from "line", optional argument to take only portion of the line after position "pos"
-std::string removeWhitespace(std::string line, int pos) {
-
-    std::string val = line.substr(pos + 1, std::string::npos);
-    std::regex r("\\s+");
-    val = std::regex_replace(val, r, "");
-    return val;
-}
-
-// Check if a string is Y (true) or N (false)
-bool getInputBool(std::string val_input) {
-    std::string val = removeWhitespace(val_input);
-    if (val == "N") {
-        return false;
-    }
-    else if (val == "Y") {
-        return true;
-    }
-    else {
-        std::string error = "Input \"" + val + "\" must be \"Y\" or \"N\".";
-        throw std::runtime_error(error);
-    }
-}
-
-// Convert string "val_input" to base 10 integer
-int getInputInt(std::string val_input) {
-    int IntFromString = stoi(val_input, nullptr, 10);
-    return IntFromString;
-}
-
-// Convert string "val_input" to float value multiplied by 10^(factor)
-float getInputFloat(std::string val_input, int factor) {
-    float FloatFromString = atof(val_input.c_str()) * pow(10, factor);
-    return FloatFromString;
-}
-
-// Convert string "val_input" to double value multiplied by 10^(factor)
-double getInputDouble(std::string val_input, int factor) {
-    double DoubleFromString = std::stod(val_input.c_str()) * pow(10, factor);
-    return DoubleFromString;
-}
+// ====================================================
+//               Choose Kokkos spaces
+// ====================================================
+using exec_space = Kokkos::DefaultExecutionSpace;
+using memory_space = typename exec_space::memory_space;
 
 // Given a string ("line"), parse at "separator" (commas used by default)
 // Modifies "parsed_line" to hold the separated values
 // expected_num_values may be larger than parsed_line_size, if only a portion of the line is being parsed
-void splitString(const std::string line, std::vector<std::string> &parsed_line, std::size_t expected_num_values,
+void splitString(const std::string& line, std::vector<std::string>& parsed_line, std::size_t expected_num_values,
                  char separator) {
     // Make sure the right number of values are present on the line - one more than the number of separators
     std::size_t actual_num_values = std::count(line.begin(), line.end(), separator) + 1;
@@ -65,8 +28,10 @@ void splitString(const std::string line, std::vector<std::string> &parsed_line, 
                             " values while reading file; but " + std::to_string(actual_num_values) + " were found";
         throw std::runtime_error(error);
     }
+
     // Separate the line into its components, now that the number of values has been checked
     std::size_t parsed_line_size = parsed_line.size();
+    
     // Make a copy that we can modify
     std::string line_copy = line;
     for (std::size_t n = 0; n < parsed_line_size - 1; n++) {
@@ -77,244 +42,180 @@ void splitString(const std::string line, std::vector<std::string> &parsed_line, 
     parsed_line[parsed_line_size - 1] = line_copy;
 }
 
-// Reads a line from an input file stream and outputs the components of the line split at "separator" (spaces used by
-// default). By default, expects 4 components of the line to separate (used in parsing vtk header data)
-std::vector<std::string> splitString(std::ifstream &input_data_stream, std::size_t expected_num_values,
-                                     char separator) {
-
-    std::string line;
-    std::vector<std::string> parsed_line(expected_num_values);
-    getline(input_data_stream, line);
-    splitString(line, parsed_line, expected_num_values, separator);
-    return parsed_line;
-}
-
-bool checkFileExists(const std::string path, const int id, const bool error) {
-    std::ifstream stream;
-    stream.open(path);
-    if (!(stream.is_open())) {
-        stream.close();
-        if (error)
-            throw std::runtime_error("Could not locate/open \"" + path + "\"");
-        else
-            return false;
-    }
-    stream.close();
-    if (id == 0)
-        std::cout << "Opened \"" << path << "\"" << std::endl;
-    return true;
-}
-
-std::string checkFileInstalled(const std::string name, const int id) {
-    // Path to file. Prefer installed location; if not installed use source location.
-    std::string path = ExaCA_DATA_INSTALL;
-    std::string file = path + "/" + name;
-    bool files_installed = checkFileExists(file, id, false);
-    if (!files_installed) {
-        // If full file path, just use it.
-        if (name.substr(0, 1) == "/") {
-            file = name;
-        }
-        // If a relative path, it has to be with respect to the source path.
-        else {
-            path = ExaCA_DATA_SOURCE;
-            file = path + "/" + name;
-        }
-        checkFileExists(file, id);
-    }
-    return file;
-}
-
-// Make sure file contains data
-void checkFileNotEmpty(std::string testfilename) {
-    std::ifstream testfilestream;
-    testfilestream.open(testfilename);
-    std::string testline;
-    std::getline(testfilestream, testline);
-    if (testline.empty())
-        throw std::runtime_error("First line of file " + testfilename + " appears empty");
-    testfilestream.close();
-}
-
-// Check if the temperature data is in ASCII or binary format
-bool checkTemperatureFileFormat(std::string tempfile_thislayer) {
-    bool binary_input_data;
-    std::size_t found = tempfile_thislayer.find(".catemp");
-    if (found == std::string::npos)
-        binary_input_data = false;
-    else
-        binary_input_data = true;
-    return binary_input_data;
-}
-
-// Check to make sure that the 6 expected column names appear in the correct order in the header for this temperature
-// file Return the number of columns present - ignore any columns after the 6 of interest
-std::size_t checkForHeaderValues(std::string header_line) {
-
-    // Header values from file - number of commas plus one is the size of the header
-    std::size_t header_size = std::count(header_line.begin(), header_line.end(), ',') + 1;
-    std::vector<std::string> header_values(header_size, "");
-    splitString(header_line, header_values, header_size);
-
-    std::vector<std::vector<std::string>> expected_values = {
-        {"x",  "x(m)"},
-        {"y",  "y(m)"},
-        {"z",  "z(m)"},
-        {"tm", "tm(s)"},
-        {"tl", "tl(s)", "ts", "ts(s)"},
-        {"r",  "r(k/s)", "cr", "cr(k/s)"}
-    };
-    std::size_t num_expected_values = expected_values.size();
-    if (num_expected_values > header_size)
-        throw std::runtime_error("Error: Fewer values than expected found in temperature file header");
-
-    // Case insensitive comparison
-    for (std::size_t n = 0; n < num_expected_values; n++) {
-        auto val = removeWhitespace(header_values[n]);
-        std::transform(val.begin(), val.end(), val.begin(), ::tolower);
-        // Check each header column label against the expected value(s) - throw error if no match
-        std::size_t options_size = expected_values[n].size();
-        for (std::size_t e = 0; e < options_size; e++) {
-            auto ev = expected_values[n][e];
-            if (val == ev)
-                break;
-            else if (e == options_size - 1)
-                throw std::runtime_error(ev + " not found in temperature file header");
-        }
-    }
-    return header_size;
-}
-
 // Read and discard "n_lines" lines of data from the file
-void skipLines(std::ifstream &input_data_stream, const int n_lines) {
+void skipLines(std::ifstream& input_data_stream, int n_lines) {
     std::string dummy_str;
     for (int line = 0; line < n_lines; line++)
+    {
         getline(input_data_stream, dummy_str);
+    }
 }
 
- // Initializes Grain ID values where the substrate comes from a file
-void initBaseplateGrainID(const int id, const Grid &grid, const int baseplate_size_z) {
+// Swaps bits for a variable of type SwapType
+template <typename SwapType>
+void swapEndian(SwapType &var) {
+    // Cast var into a char array (bit values)
+    char *varArray = reinterpret_cast<char *>(&var);
+    
+    // Size of char array
+    int size = sizeof(var);
+    
+    // Swap the "ith" bit with the bit "i" from the end of the array
+    for (long i = 0; i < static_cast<long>(size / 2); i++)
+    {
+        std::swap(varArray[size - 1 - i], varArray[i]);
+    }
+}
 
-    // Parse substrate input file
-    std::ifstream substrate;
-    substrate.open(_inputs.substrate_filename);
+// Reads binary data of the type ReadType, optionally swapping the endian format
+template <typename ReadType>
+ReadType readBinaryData(std::ifstream& inStream, bool doSwapEndian = false) {
+    unsigned char temp[sizeof(ReadType)];
+    inStream.read(reinterpret_cast<char *>(temp), sizeof(ReadType));
+    if (doSwapEndian)
+    {
+        swapEndian(temp);
+    }
+    ReadType read_value = reinterpret_cast<ReadType &>(temp);
+    return read_value;
+}
+
+// Parse space-separated ASCII data loaded into the string stream
+template <typename ReadType>
+ReadType parseASCIIData(std::istringstream& ss) {
+    ReadType read_value;
+    ss >> read_value;
+    return read_value;
+}
+
+// Reads portion of a paraview file and places data in the appropriate data structure
+// ASCII data at each Z value is separated by a newline
+template <typename ReadViewType>
+ReadViewType readASCIIField(std::ifstream& inStream, int nx, int ny, int nz, const std::string& label) {
+    ReadViewType field(Kokkos::ViewAllocateWithoutInitializing(label), nz, nx, ny);
+    using value_type = typename ReadViewType::value_type;
+
+    for (int k = 0; k < nz; k++) {
+        // Get line from file
+        std::string line;
+        getline(inStream, line);
+
+        // Parse string at spaces
+        std::istringstream ss(line);
+        for (int j = 0; j < ny; j++) {
+            for (int i = 0; i < nx; i++) {
+                field(k, i, j) = parseASCIIData<value_type>(ss);
+            }
+        }
+    }
+    return field;
+}
+
+// Reads binary string of type read_datatype from a paraview file, converts field to the appropriate type to match
+// read_view_type_3d_host (i.e, value_type), and place data in the appropriate data structure Each field consists of a
+// single binary string (no newlines) Store converted values in view - LayerID data is a short int, GrainID data is an
+// int In some older vtk files, LayerID may have been stored as an int and should be converted
+template <typename ReadViewType, typename ReadType>
+ReadViewType readBinaryField(std::ifstream &input_data_stream, int nx, int ny, int nz, const std::string& label) {
+    ReadViewType field(Kokkos::ViewAllocateWithoutInitializing(label), nz, nx, ny);
+    using value_type = typename ReadViewType::value_type;
+
+    for (int k = 0; k < nz; k++) {
+        for (int j = 0; j < ny; j++) {
+            for (int i = 0; i < nx; i++) {
+                ReadType parsed_value = readBinaryData<ReadType>(input_data_stream, true);
+                field(k, i, j) = static_cast<value_type>(parsed_value);
+            }
+        }
+    }
+    return field;
+}
+
+Kokkos::View<int***, memory_space> loadGrainIDs( 
+    const std::string& fileName, 
+    Kokkos::Array<double, 3>& outLowCorner,
+    Kokkos::Array<double, 3>& outHighCorner 
+)
+{
+    // Open input file
+    std::ifstream grainFile;
+    grainFile.open(fileName);
+
     // Ignore first two header lines
-    skipLines(substrate, 2);
+    skipLines(grainFile, 2);
 
     // Is this data binary or ASCII
     std::string read_line;
-    getline(substrate, read_line);
-    const bool binary_s = (read_line.find("BINARY") != std::string::npos);
+    getline(grainFile, read_line);
+    const bool isBinary = (read_line.find("BINARY") != std::string::npos);
 
     // Ignore line
-    skipLines(substrate, 1);
+    skipLines(grainFile, 1);
 
-    // Get nx_s, ny_s, and nz_s
-    std::vector<std::string> dims_read = splitString(substrate);
-    const int nx_s = getInputInt(dims_read[1]);
-    const int ny_s = getInputInt(dims_read[2]);
-    const int nz_s = getInputInt(dims_read[3]);
+    // Get nx, ny and nz
+    std::vector<std::string> dims_read;
+    splitString(grainFile, dims_read, 4, ' ');
+    const int nx = std::stoi(dims_read[1]);
+    const int ny = std::stoi(dims_read[2]);
+    const int nz = std::stoi(dims_read[3]);
 
     // Get origin location
-    std::vector<std::string> org_read = splitString(substrate);
-    const double x_min_s = getInputDouble(org_read[1]);
-    const double y_min_s = getInputDouble(org_read[2]);
-    const double z_min_s = getInputDouble(org_read[3]);
+    std::vector<std::string> origin_read;
+    splitString(grainFile, origin_read, 4, ' ');
+    outLowCorner[0] = std::stod(origin_read[1]);
+    outLowCorner[1] = std::stod(origin_read[2]);
+    outLowCorner[2] = std::stod(origin_read[3]);
 
     // Get voxel spacing
-    std::vector<std::string> vox_spacing_read = splitString(substrate);
-    const double deltax_s = getInputDouble(vox_spacing_read[1]);
-    if ((deltax_s != getInputDouble(vox_spacing_read[2])) || (deltax_s != getInputDouble(vox_spacing_read[3])))
-        throw std::runtime_error("Error: substrate data must have same spacing in all directions");
+    std::vector<std::string> vox_spacing_read;
+    splitString(grainFile, vox_spacing_read, 4, ' ');
+    const double dx = std::stod(vox_spacing_read[1]);
+    const double dy = std::stod(vox_spacing_read[2]);
+    const double dz = std::stod(vox_spacing_read[3]);
 
-    // Ensure substrate dimensions can sufficiently cover the solidification domain
-    if (id == 0)
-        std::cout << "Substrate dimensions from file are " << nx_s << " by " << ny_s << " by " << nz_s
-                    << ", voxel spacing is " << deltax_s << std::endl;
-    checkSubstrateBound(x_min_s, nx_s, deltax_s, grid.x_min, grid.x_max, "X", grid.deltax);
-    checkSubstrateBound(y_min_s, ny_s, deltax_s, grid.y_min, grid.y_max, "Y", grid.deltax);
-    checkSubstrateBound(z_min_s, nz_s, deltax_s, grid.z_min, _inputs.baseplate_top_z, "Z", grid.deltax);
-
+    // Compute domain size
+    outHighCorner[0] = outLowCorner[0] + nx * dx;
+    outHighCorner[1] = outLowCorner[1] + ny * dy;
+    outHighCorner[2] = outLowCorner[2] + nz * dz;
+    
     // Ignore line
-    skipLines(substrate, 1);
+    skipLines(grainFile, 1);
 
     // Ensure data is of type integer
-    getline(substrate, read_line);
-    if (!read_line.find("int"))
-        throw std::runtime_error("Error: substrate grain ID data must be type int");
+    getline(grainFile, read_line);
+    if ( !read_line.find("int") )
+    {
+        throw std::runtime_error("Error: grain ID data must be type int");
+    }
 
     // Ignore line
-    skipLines(substrate, 1);
+    skipLines(grainFile, 1);
 
-    // Read grain ID data from file into the host view
-    Kokkos::View<int ***, Kokkos::HostSpace> grain_id_s_host(Kokkos::ViewAllocateWithoutInitializing("GrainID_S"),
-                                                                nz_s, nx_s, ny_s);
-    if (binary_s)
-        grain_id_s_host =
-            readBinaryField<Kokkos::View<int ***, Kokkos::HostSpace>, int>(substrate, nx_s, ny_s, nz_s, "GrainID");
+    // Read grain ID data from file into a host view
+    Kokkos::View<int***, Kokkos::HostSpace> grainIDsHost(
+        Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
+        nz, nx, ny
+    );
+
+    if ( isBinary )
+    {
+        grainIDhost = readBinaryField<Kokkos::View<int***, Kokkos::HostSpace>, int>(grainFile, nx, ny, nz, "GrainID");
+    }
     else
-        grain_id_s_host =
-            readASCIIField<Kokkos::View<int ***, Kokkos::HostSpace>>(substrate, nx_s, ny_s, nz_s, "GrainID");
-    if (id == 0)
-        std::cout << "Successfully read substrate GrainID data from the file" << std::endl;
-    substrate.close();
-    // Copy host view data to device
-    auto grain_id_s = Kokkos::create_mirror_view_and_copy(memory_space(), grain_id_s_host);
+    {
+        grainIDhost = readASCIIField<Kokkos::View<int***, Kokkos::HostSpace>>(grainFile, nx, ny, nz, "GrainID");
+    }
 
-    // Assign each CA cell the GrainID of the nearest voxel in the substrate, returning the min and max GrainID
-    const int baseplate_top_coord_1D = grid.nx * grid.ny_local * baseplate_size_z;
-    // Struct to store reduction result
-    Kokkos::MinMax<int>::value_type bounds_grain_id_local;
-    Kokkos::MinMax<int> bounds_grain_id_reducer(bounds_grain_id_local);
-    // Local copy for lambda capture
-    auto grain_id_all_layers_local = grain_id_all_layers;
-    auto policy = Kokkos::RangePolicy<execution_space>(0, baseplate_top_coord_1D);
-    Kokkos::parallel_reduce(
-        "BaseplateInit", policy,
-        KOKKOS_LAMBDA(const int &index_all_layers, Kokkos::MinMax<int>::value_type &update) {
-            // x, y, z associated with this 1D cell location, with respect to the global simulation bounds
-            const int coord_x_global = grid.getCoordX(index_all_layers);
-            const int coord_y_global = grid.getCoordY(index_all_layers) + grid.y_offset;
-            const int coord_z_global = grid.getCoordZ(index_all_layers);
-            const double x_location = grid.x_min + coord_x_global * grid.deltax;
-            const double y_location = grid.y_min + coord_y_global * grid.deltax;
-            const double z_location = grid.z_min + coord_z_global * grid.deltax;
-            // What voxel does this correspond to in the substrate?
-            const int coord_x_s = Kokkos::round((x_location - x_min_s) / deltax_s);
-            const int coord_y_s = Kokkos::round((y_location - y_min_s) / deltax_s);
-            const int coord_z_s = Kokkos::round((z_location - z_min_s) / deltax_s);
-            grain_id_all_layers_local(index_all_layers) = grain_id_s(coord_z_s, coord_x_s, coord_y_s);
-            Kokkos::MinMaxScalar<int> current{grain_id_all_layers_local(index_all_layers),
-                                                grain_id_all_layers_local(index_all_layers)};
-            bounds_grain_id_reducer.join(update, current);
-        },
-        bounds_grain_id_reducer);
-    Kokkos::fence();
-    // Avoid reusing grain IDs that were already in the baseplate grain structure in future powder layers (positive
-    // values) or future nucleation events (negative values)
-    const int min_grain_id_local = bounds_grain_id_local.min_val;
-    const int max_grain_id_local = bounds_grain_id_local.max_val;
-    MPI_Allreduce(&min_grain_id_local, &num_prior_nuclei, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-    MPI_Allreduce(&max_grain_id_local, &next_layer_first_epitaxial_grain_id, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-    // First grain ID used in future layers should be 1 beyond the largest used in the substrate, increment by 1
-    next_layer_first_epitaxial_grain_id++;
-    // The number of negative grain IDs to be reserved is equivalent to the absolute value of the smallest substrate
-    // grain ID (this will then be passed to the nucleation constructor to avoid assigning these IDs to new
-    // nucleation events)
-    num_prior_nuclei = Kokkos::abs(num_prior_nuclei);
-    if (id == 0)
-        std::cout << "Substrate file read complete: grain id values in baseplate: " << -num_prior_nuclei
-                    << " through " << next_layer_first_epitaxial_grain_id - 1 << std::endl;
+    // Copy to memory_space
+    Kokkos::View<int***, memory_space> grainIDs("Grain IDs", nz, nx, ny);
+    Kokkos::deep_copy(grainIDsHost, grainIDs);
+
+    return grainIDS;
 }
 
 // Simulate a crack in a polycrystal
-void polycrystalExample( const std::string filename )
+void polycrystalImportExample( const std::string& filename )
 {
-    // ====================================================
-    //               Choose Kokkos spaces
-    // ====================================================
-    using exec_space = Kokkos::DefaultExecutionSpace;
-    using memory_space = typename exec_space::memory_space;
 
     // ====================================================
     //                   Read inputs
@@ -322,24 +223,12 @@ void polycrystalExample( const std::string filename )
     CabanaPD::Inputs inputs( filename );
 
     // ====================================================
-    //                  Discretization
-    // ====================================================
-    std::array<double, 3> low_corner = { inputs["low_corner"][0],
-                                         inputs["low_corner"][1],
-                                         inputs["low_corner"][2] };
-    std::array<double, 3> high_corner = { inputs["high_corner"][0],
-                                          inputs["high_corner"][1],
-                                          inputs["high_corner"][2] };
-
-    // ====================================================
     //                Material parameters
     // ====================================================
-    Kokkos::Array<double, NUM_GRAINS> grainRho;
-    for ( int i = 0; i < NUM_GRAINS; ++i )
-    {
-        grainRho[i] = inputs["density"][i];
-    }
-
+    
+    // All grains have the same density
+    double density = inputs["density"][0];
+    
     // Within-grain parameters
     double E_within = inputs["elastic_modulus"][0];
     double nu_within = inputs["Poisson's_ratio"][0];
@@ -360,18 +249,21 @@ void polycrystalExample( const std::string filename )
     // ====================================================
     //                Polycrystal grains
     // ====================================================
-    std::array<double, 3> extent = inputs["system_size"];
-    std::array<std::array<double, 3>, NUM_GRAINS> grainPosStd;
-    getPolycrystalGrains( extent, grainPosStd );
 
-    // Shift grains relative to low_corner and copy to Kokkos::Array
-    Kokkos::Array<Kokkos::Array<double, 3>, NUM_GRAINS> grainPos;
-    for ( int i = 0; i < NUM_GRAINS; ++i )
-    {
-        grainPos[i] = { grainPosStd[i][0] + low_corner[0],
-                        grainPosStd[i][1] + low_corner[1],
-                        grainPosStd[i][2] + low_corner[2] };
-    }
+    // For now just load grain IDs and domain size; 
+    // nearest-neighbor interpolation is performed later 
+    // during intialization
+    Kokkos::Array<double, 3> low_corner;
+    Kokkos::Array<double, 3> high_corner;
+    Kokkos::View<int***, memory_space> grainIDs = loadGrainIDs(
+        inputs["grain_file"], low_corner, high_corner
+    );
+
+    // Calculate loaded grid spacing for interpolation to use later
+    Kokkos::Array<double, 3> grain_dx;
+    grain_dx[0] = (high_corner[0] - low_corner[0]) / loadGrainIDs.extent(0);
+    grain_dx[1] = (high_corner[1] - low_corner[1]) / loadGrainIDs.extent(1);
+    grain_dx[2] = (high_corner[2] - low_corner[2]) / loadGrainIDs.extent(2);
 
     // ====================================================
     //                   Force models
@@ -420,26 +312,19 @@ void polycrystalExample( const std::string filename )
              x( pid, 1 ) >= plane2.high[1] - horizon )
             nofail( pid ) = 1;
 
-        // Distance squared from nearest grain location
-        double distSq = 0.0;
-        int grainIndex = 0;
-        for ( int i = 0; i < NUM_GRAINS; ++i )
-        {
-            const Kokkos::Array<double, 3>& pos = grainPos[i];
-            double dx = x( pid, 0 ) - pos[0];
-            double dy = x( pid, 1 ) - pos[1];
-            double dz = x( pid, 2 ) - pos[2];
-            double check = dx * dx + dy * dy + dz * dz;
-            if ( i == 0 || check < distSq )
-            {
-                distSq = check;
-                grainIndex = i;
-            }
-        }
+        // Nearest-neighbor interpolation to get grain type
+        const int xGrainIndex = Kokkos::floor((x(pid, 0) - low_corner[0]) / grain_dx[0]);
+        xGrainIndex = Kokkos::min(xGrainIndex, grainIDs.extent(0) - 1);
+        
+        const int yGrainIndex = Kokkos::floor((x(pid, 1) - low_corner[1]) / grain_dx[1]);
+        yGrainIndex = Kokkos::min(yGrainIndex, grainIDs.extent(1) - 1);
 
-        // Density and material type
-        type( pid ) = grainIndex;
-        rho( pid ) = grainRho[grainIndex];
+        const int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
+        zGrainIndex = Kokkos::min(zGrainIndex, grainIDs.extent(2) - 1);
+
+        // Set density and material type
+        type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
+        rho( pid ) = density;
     };
     particles.update( exec_space{}, init_functor );
 
@@ -482,7 +367,7 @@ int main( int argc, char* argv[] )
     MPI_Init( &argc, &argv );
     Kokkos::initialize( argc, argv );
 
-    polycrystalExample( argv[1] );
+    polycrystalImportExample( argv[1] );
 
     Kokkos::finalize();
     MPI_Finalize();
