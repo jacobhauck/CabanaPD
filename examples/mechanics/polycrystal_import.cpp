@@ -154,21 +154,24 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
 
     // Get nx, ny and nz
     std::vector<std::string> dims_read;
-    splitString(grainFile, dims_read, 4, ' ');
+    getline(grainFile, read_line);
+    splitString(read_line, dims_read, 4, ' ');
     const int nx = std::stoi(dims_read[1]);
     const int ny = std::stoi(dims_read[2]);
     const int nz = std::stoi(dims_read[3]);
 
     // Get origin location
     std::vector<std::string> origin_read;
-    splitString(grainFile, origin_read, 4, ' ');
+    getline(grainFile, read_line);
+    splitString(read_line, origin_read, 4, ' ');
     outLowCorner[0] = std::stod(origin_read[1]);
     outLowCorner[1] = std::stod(origin_read[2]);
     outLowCorner[2] = std::stod(origin_read[3]);
 
     // Get voxel spacing
     std::vector<std::string> vox_spacing_read;
-    splitString(grainFile, vox_spacing_read, 4, ' ');
+    getline(grainFile, read_line);
+    splitString(read_line, vox_spacing_read, 4, ' ');
     const double dx = std::stod(vox_spacing_read[1]);
     const double dy = std::stod(vox_spacing_read[2]);
     const double dz = std::stod(vox_spacing_read[3]);
