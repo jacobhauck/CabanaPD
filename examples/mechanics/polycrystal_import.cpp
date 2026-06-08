@@ -224,6 +224,14 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     Kokkos::deep_copy(grainIDsHost, grainIDs);
     std::cout << "Copied grains to device memory" << std::endl;
 
+    Kokkos::MDRangePolicy rangePolicy({0, 0, 0}, {nz, nx, ny});
+    Kokkos::Min<int> minimum;
+    Kokkos::parallel_reduce("Calculate min index", rangePolicy, KOKKOS_LAMBDA(int z, int x, int y) {grainIDs(z, x, y)}, minimum);
+
+    Kokkos::parallel_for("Shift to start indices from 0", rangePolicy, KOKKOS_LAMBDA(int z, int x, int y){
+        grainIDs(z, x, y) -= minimum.reference();
+    });
+
     return grainIDs;
 }
 
