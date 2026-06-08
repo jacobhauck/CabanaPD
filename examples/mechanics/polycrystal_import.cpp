@@ -197,7 +197,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     // Read grain ID data from file into a host view
     Kokkos::View<int***, Kokkos::HostSpace> grainIDsHost(
         Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
-        nz, ny, nx
+        nz, nx, ny
     );
 
     if ( isBinary )
