@@ -16,30 +16,21 @@
 using exec_space = Kokkos::DefaultExecutionSpace;
 using memory_space = typename exec_space::memory_space;
 
-// Given a string ("line"), parse at "separator" (commas used by default)
-// Modifies "parsed_line" to hold the separated values
-// expected_num_values may be larger than parsed_line_size, if only a portion of the line is being parsed
-void splitString(const std::string& line, std::vector<std::string>& parsed_line, std::size_t expected_num_values,
-                 char separator) {
-    // Make sure the right number of values are present on the line - one more than the number of separators
-    std::size_t actual_num_values = std::count(line.begin(), line.end(), separator) + 1;
-    if (expected_num_values != actual_num_values) {
-        std::string error = "Error: Expected " + std::to_string(expected_num_values) +
-                            " values while reading file; but " + std::to_string(actual_num_values) + " were found";
-        throw std::runtime_error(error);
-    }
-
-    // Separate the line into its components, now that the number of values has been checked
-    std::size_t parsed_line_size = parsed_line.size();
+// Given a string s, split into tokens on separator
+// Modifies outTokens to hold the separated values
+void splitString(const std::string& s, char separator, std::vector<std::string>& outTokens) {
+    // Remove any existing values from output vector
+    outTokens.clear();
     
-    // Make a copy that we can modify
-    std::string line_copy = line;
-    for (std::size_t n = 0; n < parsed_line_size - 1; n++) {
-        std::size_t pos = line_copy.find(separator);
-        parsed_line[n] = line_copy.substr(0, pos);
-        line_copy = line_copy.substr(pos + 1, std::string::npos);
+    // Find tokens and add to output
+    std::size_t curStart = 0; 
+    std::size_t sepIndex;
+    while((sepIndex = s.find(separator, curStart)) != std::string::npos)
+    {
+        outTokens.push_back(s.substr(curStart, sepIndex - curStart));
+        curStart = sepIndex + 1;
     }
-    parsed_line[parsed_line_size - 1] = line_copy;
+    outTokens.push_back(s.substr(curStart));
 }
 
 // Read and discard "n_lines" lines of data from the file
@@ -131,6 +122,11 @@ ReadViewType readBinaryField(std::ifstream &input_data_stream, int nx, int ny, i
     return field;
 }
 
+// Read the grain structure from a .vtk located at fileName
+// Returns lower corner [x, y, z] and upper corner [x, y, z]
+// of the grain structure in outLowCorner and outHighCorner
+// as well as the grid shape in outGridShape. The grain data
+// is returned as the main return value in a Kokkos view.
 Kokkos::View<int***, memory_space> loadGrainIDs( 
     const std::string& fileName, 
     Kokkos::Array<double, 3>& outLowCorner,
@@ -141,6 +137,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     // Open input file
     std::ifstream grainFile;
     grainFile.open(fileName);
+    std::cout << "Opened file" << std::endl;
 
     // Ignore first two header lines
     skipLines(grainFile, 2);
@@ -149,41 +146,48 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     std::string read_line;
     getline(grainFile, read_line);
     const bool isBinary = (read_line.find("BINARY") != std::string::npos);
+    std::cout << "File is binary? " << (isBinary ? "Yes" : "No") << std::endl;
 
     // Ignore line
     skipLines(grainFile, 1);
+    std::cout << "Skipped line" << std::endl;
 
     // Get nx, ny and nz
     std::vector<std::string> dims_read;
     getline(grainFile, read_line);
-    splitString(read_line, dims_read, 4, ' ');
-    outGridShape[0] = std::stoi(dims_read[1]);
-    outGridShape[1] = std::stoi(dims_read[2]);
-    outGridShape[2] = std::stoi(dims_read[3]);
+    std::cout << "Read line: " << read_line << std::endl;
+    splitString(read_line, ' ', dims_read);
+    std::cout << "Split string into " << dims_read.size() << " elements" << std::endl;
+    const int nx = std::stoi(dims_read[1]);
+    const int ny = std::stoi(dims_read[2]);
+    const int nz = std::stoi(dims_read[3]);
+    outGridShape[0] = nx;
+    outGridShape[1] = ny;
+    outGridShape[2] = nz;
+    std::cout << "nx = " << nx << " ny = " << ny << " nz = " << nz << std::endl;
 
     // Get origin location
     std::vector<std::string> origin_read;
     getline(grainFile, read_line);
-    splitString(read_line, origin_read, 4, ' ');
-    const int nx = std::stod(origin_read[1]);
-    const int ny = std::stod(origin_read[2]);
-    const int nz = std::stod(origin_read[3]);
-    outGridShape[0] = nx;
-    outGridShape[1] = ny;
-    outGridShape[2] = nz;
+    splitString(read_line, ' ', origin_read);
+    outLowCorner[0] = std::stod(origin_read[1]);
+    outLowCorner[1] = std::stod(origin_read[2]);
+    outLowCorner[2] = std::stod(origin_read[3]);
+    std::cout << "ox = " << outLowCorner[0] << " oy = " << outLowCorner[1] << " oz = " << outLowCorner[2] << std::endl;
 
     // Get voxel spacing
     std::vector<std::string> vox_spacing_read;
     getline(grainFile, read_line);
-    splitString(read_line, vox_spacing_read, 4, ' ');
+    splitString(read_line, ' ', vox_spacing_read);
     const double dx = std::stod(vox_spacing_read[1]);
     const double dy = std::stod(vox_spacing_read[2]);
     const double dz = std::stod(vox_spacing_read[3]);
+    std::cout << "dx = " << dx << " dy = " << dy << " dz = " << dz << std::endl;
 
     // Compute domain size
-    outHighCorner[0] = outLowCorner[0] + nx * dx;
-    outHighCorner[1] = outLowCorner[1] + ny * dy;
-    outHighCorner[2] = outLowCorner[2] + nz * dz;
+    outHighCorner[0] = outLowCorner[0] + outGridShape[0] * dx;
+    outHighCorner[1] = outLowCorner[1] + outGridShape[1] * dy;
+    outHighCorner[2] = outLowCorner[2] + outGridShape[2] * dz;
     
     // Ignore line
     skipLines(grainFile, 1);
@@ -203,6 +207,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
         Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
         nz, ny, nx
     );
+    std::cout << "Initialized temporary read memory" << std::endl;
 
     if ( isBinary )
     {
@@ -212,10 +217,12 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     {
         grainIDsHost = readASCIIField<Kokkos::View<int***, Kokkos::HostSpace>>(grainFile, nx, ny, nz, "GrainID");
     }
+    std::cout << "Read grains into host memory" << std::endl;
 
     // Copy to memory_space
     Kokkos::View<int***, memory_space> grainIDs("Grain IDs", nz, nx, ny);
     Kokkos::deep_copy(grainIDsHost, grainIDs);
+    std::cout << "Copied grains to device memory" << std::endl;
 
     return grainIDs;
 }
@@ -228,6 +235,7 @@ void polycrystalImportExample( const std::string& filename )
     //                   Read inputs
     // ====================================================
     CabanaPD::Inputs inputs( filename );
+    std::cout << "Read inputs" << std::endl;
 
     // ====================================================
     //                Material parameters
@@ -252,6 +260,7 @@ void polycrystalImportExample( const std::string& filename )
 
     double horizon = inputs["horizon"];
     horizon += 1e-10;
+    std::cout << "Retrieved material parameters" << std::endl;
 
     // ====================================================
     //                Polycrystal grains
@@ -272,6 +281,7 @@ void polycrystalImportExample( const std::string& filename )
     grain_dx[0] = (high_corner[0] - low_corner[0]) / grain_grid_shape[0];
     grain_dx[1] = (high_corner[1] - low_corner[1]) / grain_grid_shape[1];
     grain_dx[2] = (high_corner[2] - low_corner[2]) / grain_grid_shape[2];
+    std::cout << "Read grain file" << std::endl;
 
     // ====================================================
     //                   Force models
@@ -283,14 +293,29 @@ void polycrystalImportExample( const std::string& filename )
                                              G0_within );
     CabanaPD::ForceModel force_model_between( model_type{}, horizon, K_between,
                                               G0_between );
+    std::cout << "Created force models" << std::endl;
 
     // ====================================================
     //                 Particle generation
     // ====================================================
-    // Note that individual inputs can be passed instead (see other examples).
     CabanaPD::Particles particles( memory_space{}, model_type{} );
-    particles.domain( inputs );
+    
+    // Use geometry loaded from grain file
+    std::array<double, 3> low_corner_std, high_corner_std;
+    low_corner_std[0] = low_corner[0];
+    low_corner_std[1] = low_corner[1];
+    low_corner_std[2] = low_corner[2];
+    high_corner_std[0] = high_corner[0];
+    high_corner_std[1] = high_corner[1];
+    high_corner_std[2] = high_corner[2];
+    
+    std::array<int, 3> num_cells = inputs["num_cells"];
+    int m = std::floor(
+        horizon / ( ( high_corner[0] - low_corner[0] ) / num_cells[0] ) );
+    int halo_width = m + 1; // Just to be safe.
+    particles.domain( low_corner_std, high_corner_std, num_cells, halo_width );
     particles.create( exec_space{} );
+    std::cout << "Created particles" << std::endl;
 
     // ====================================================
     //                Boundary conditions planes
@@ -302,6 +327,7 @@ void polycrystalImportExample( const std::string& filename )
     CabanaPD::Region<CabanaPD::RectangularPrism> plane2(
         low_corner[0], high_corner[0], high_corner[1] - dy, high_corner[1] + dy,
         low_corner[2], high_corner[2] );
+    std::cout << "Defined boundary geometry" << std::endl;
 
     // ====================================================
     //            Custom particle initialization
@@ -329,12 +355,17 @@ void polycrystalImportExample( const std::string& filename )
 
         int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
         zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
-
+        
+        if(xGrainIndex < 0 || yGrainIndex < 0 || zGrainIndex < 0)
+        {
+            std::cout << xGrainIndex << ", " << yGrainIndex << ", " << zGrainIndex << std::endl;
+        }
         // Set density and material type
         type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
         rho( pid ) = density;
     };
     particles.update( exec_space{}, init_functor );
+    std::cout << "Initialized particles" << std::endl;
 
     // ====================================================
     //                   Create solver
@@ -343,6 +374,7 @@ void polycrystalImportExample( const std::string& filename )
     auto models = CabanaPD::createMultiForceModel(
         particles, indexing, force_model_within, force_model_between );
     CabanaPD::Solver solver( inputs, particles, models );
+    std::cout << "Created solver" << std::endl;
 
     // ====================================================
     //                Boundary conditions
@@ -361,11 +393,13 @@ void polycrystalImportExample( const std::string& filename )
     };
     auto bc = createBoundaryCondition( bc_op, exec_space{}, solver.particles,
                                        true, plane1, plane2 );
+    std::cout << "Imposed boundary conditions" << std::endl;
 
     // ====================================================
     //                   Simulation run
     // ====================================================
     solver.init( bc );
+    std::cout << "Initialized solver" << std::endl;
     solver.run( bc );
 }
 
