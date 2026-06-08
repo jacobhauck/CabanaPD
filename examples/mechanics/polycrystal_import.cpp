@@ -211,7 +211,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
 
     // Copy to memory_space
     Kokkos::View<int***, memory_space> grainIDs("Grain IDs", nz, nx, ny);
-    Kokkos::deep_copy(grainIDsHost, grainIDs);
+    Kokkos::deep_copy(grainIDs, grainIDsHost);
 
     Kokkos::MDRangePolicy rangePolicy({0, 0, 0}, {nz, nx, ny});
     int minimum;
@@ -353,10 +353,6 @@ void polycrystalImportExample( const std::string& filename )
         int zGrainIndex = Kokkos::floor((x(pid, 2) - low_corner[2]) / grain_dx[2]);
         zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
         
-        if(xGrainIndex < 0 || yGrainIndex < 0 || zGrainIndex < 0)
-        {
-            std::cout << xGrainIndex << ", " << yGrainIndex << ", " << zGrainIndex << std::endl;
-        }
         // Set density and material type
         type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
         rho( pid ) = density;
