@@ -137,7 +137,6 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     // Open input file
     std::ifstream grainFile;
     grainFile.open(fileName);
-    std::cout << "Opened file" << std::endl;
 
     // Ignore first two header lines
     skipLines(grainFile, 2);
@@ -146,25 +145,20 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     std::string read_line;
     getline(grainFile, read_line);
     const bool isBinary = (read_line.find("BINARY") != std::string::npos);
-    std::cout << "File is binary? " << (isBinary ? "Yes" : "No") << std::endl;
 
     // Ignore line
     skipLines(grainFile, 1);
-    std::cout << "Skipped line" << std::endl;
 
     // Get nx, ny and nz
     std::vector<std::string> dims_read;
     getline(grainFile, read_line);
-    std::cout << "Read line: " << read_line << std::endl;
     splitString(read_line, ' ', dims_read);
-    std::cout << "Split string into " << dims_read.size() << " elements" << std::endl;
     const int nx = std::stoi(dims_read[1]);
     const int ny = std::stoi(dims_read[2]);
     const int nz = std::stoi(dims_read[3]);
     outGridShape[0] = nx;
     outGridShape[1] = ny;
     outGridShape[2] = nz;
-    std::cout << "nx = " << nx << " ny = " << ny << " nz = " << nz << std::endl;
 
     // Get origin location
     std::vector<std::string> origin_read;
@@ -173,8 +167,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     outLowCorner[0] = std::stod(origin_read[1]);
     outLowCorner[1] = std::stod(origin_read[2]);
     outLowCorner[2] = std::stod(origin_read[3]);
-    std::cout << "ox = " << outLowCorner[0] << " oy = " << outLowCorner[1] << " oz = " << outLowCorner[2] << std::endl;
-
+    
     // Get voxel spacing
     std::vector<std::string> vox_spacing_read;
     getline(grainFile, read_line);
@@ -182,7 +175,6 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     const double dx = std::stod(vox_spacing_read[1]);
     const double dy = std::stod(vox_spacing_read[2]);
     const double dz = std::stod(vox_spacing_read[3]);
-    std::cout << "dx = " << dx << " dy = " << dy << " dz = " << dz << std::endl;
 
     // Compute domain size
     outHighCorner[0] = outLowCorner[0] + outGridShape[0] * dx;
@@ -207,7 +199,6 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
         Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
         nz, ny, nx
     );
-    std::cout << "Initialized temporary read memory" << std::endl;
 
     if ( isBinary )
     {
@@ -217,12 +208,10 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     {
         grainIDsHost = readASCIIField<Kokkos::View<int***, Kokkos::HostSpace>>(grainFile, nx, ny, nz, "GrainID");
     }
-    std::cout << "Read grains into host memory" << std::endl;
 
     // Copy to memory_space
     Kokkos::View<int***, memory_space> grainIDs("Grain IDs", nz, nx, ny);
     Kokkos::deep_copy(grainIDsHost, grainIDs);
-    std::cout << "Copied grains to device memory" << std::endl;
 
     Kokkos::MDRangePolicy rangePolicy({0, 0, 0}, {nz, nx, ny});
     int minimum;
@@ -249,7 +238,6 @@ void polycrystalImportExample( const std::string& filename )
     //                   Read inputs
     // ====================================================
     CabanaPD::Inputs inputs( filename );
-    std::cout << "Read inputs" << std::endl;
 
     // ====================================================
     //                Material parameters
@@ -274,7 +262,6 @@ void polycrystalImportExample( const std::string& filename )
 
     double horizon = inputs["horizon"];
     horizon += 1e-10;
-    std::cout << "Retrieved material parameters" << std::endl;
 
     // ====================================================
     //                Polycrystal grains
@@ -295,7 +282,6 @@ void polycrystalImportExample( const std::string& filename )
     grain_dx[0] = (high_corner[0] - low_corner[0]) / grain_grid_shape[0];
     grain_dx[1] = (high_corner[1] - low_corner[1]) / grain_grid_shape[1];
     grain_dx[2] = (high_corner[2] - low_corner[2]) / grain_grid_shape[2];
-    std::cout << "Read grain file" << std::endl;
 
     // ====================================================
     //                   Force models
@@ -307,7 +293,6 @@ void polycrystalImportExample( const std::string& filename )
                                              G0_within );
     CabanaPD::ForceModel force_model_between( model_type{}, horizon, K_between,
                                               G0_between );
-    std::cout << "Created force models" << std::endl;
 
     // ====================================================
     //                 Particle generation
@@ -329,7 +314,6 @@ void polycrystalImportExample( const std::string& filename )
     int halo_width = m + 1; // Just to be safe.
     particles.domain( low_corner_std, high_corner_std, num_cells, halo_width );
     particles.create( exec_space{} );
-    std::cout << "Created particles" << std::endl;
 
     // ====================================================
     //                Boundary conditions planes
@@ -341,7 +325,6 @@ void polycrystalImportExample( const std::string& filename )
     CabanaPD::Region<CabanaPD::RectangularPrism> plane2(
         low_corner[0], high_corner[0], high_corner[1] - dy, high_corner[1] + dy,
         low_corner[2], high_corner[2] );
-    std::cout << "Defined boundary geometry" << std::endl;
 
     // ====================================================
     //            Custom particle initialization
