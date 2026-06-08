@@ -226,7 +226,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
 
     Kokkos::MDRangePolicy rangePolicy({0, 0, 0}, {nz, nx, ny});
     int minimum;
-    Kokkos::Min<int> minReducer(minimum);
+    Kokkos::Min<int> minimumReducer(minimum);
     Kokkos::parallel_reduce(
         "Calculate min index",
         rangePolicy,
