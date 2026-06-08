@@ -230,7 +230,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     Kokkos::parallel_reduce(
         "Calculate min index",
         rangePolicy,
-        KOKKOS_LAMBDA(int z, int x, int y, int& lmin) {minimumReducer.join(lmin, grainIDs(z, x, y))},
+        KOKKOS_LAMBDA(int z, int x, int y, int& lmin) {minimumReducer.join(lmin, grainIDs(z, x, y));},
         minimumReducer
     );
 
