@@ -197,7 +197,7 @@ Kokkos::View<int***, memory_space> loadGrainIDs(
     // Read grain ID data from file into a host view
     Kokkos::View<int***, Kokkos::HostSpace> grainIDsHost(
         Kokkos::ViewAllocateWithoutInitializing("GrainID Host"),
-        nz, ny, nx
+        nz, nx, ny
     );
 
     if ( isBinary )
@@ -354,6 +354,7 @@ void polycrystalImportExample( const std::string& filename )
         zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
         
         // Set density and material type
+        //std::cout << "(" << pid << ") " << xGrainIndex << ", " << yGrainIndex << ", " << zGrainIndex << ": " << grainIDs(zGrainIndex, xGrainIndex, yGrainIndex) << std::endl;
         type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
         rho( pid ) = density;
     };
