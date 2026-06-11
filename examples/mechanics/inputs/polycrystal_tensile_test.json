@@ -2,7 +2,7 @@
     "num_cells"              : {"value": [100, 24, 24]},
     "system_size"            : {"value": [0.015, 0.003, 0.003], "unit": "m"},
     "horizon"                : {"value": 0.0005, "unit": "m"},
-    "final_time"             : {"value": 1.5e-3, "unit": "s"},
+    "final_time"             : {"value": 1.0e-3, "unit": "s"},
     "timestep"               : {"value": 3.0e-8, "unit": "s"},
     "timestep_safety_factor" : {"value": 0.85},
     "output_frequency"       : {"value": 400},
