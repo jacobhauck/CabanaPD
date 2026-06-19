@@ -10,7 +10,7 @@
 
 #include <CabanaPD.hpp>
 
-constexpr std::size_t NUM_GRAINS = 16;
+constexpr std::size_t NUM_GRAINS = 300000;
 constexpr double PI = 3.141592653589793238462643383;
 
 // Get flat index into ND array
@@ -225,10 +225,10 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
 
 // Generates numGrains random polycrystal grain centers using
 // Poisson disc sampling
-template <std::size_t numGrains>
 void getPolycrystalGrains(
     const std::array<double, 3>& extent,
-    std::array<std::array<double, 3>, numGrains>& outLocations )
+    std::size_t numGrains,
+    std::vector<std::array<double, 3>>& outLocations )
 {
     // Initialize RNG (for now with FIXED seed)
     std::minstd_rand baseRng;
@@ -246,6 +246,7 @@ void getPolycrystalGrains(
     do
     {
         testPoints.clear();
+        std::cout << "Sampling with radius " << radius << std::endl;
         poissonDiscSampling( extent, radius, 30, testPoints, gen );
         radius *= 0.95;
     } while ( testPoints.size() < numGrains );
@@ -287,11 +288,7 @@ void polycrystalExample( const std::string filename )
     // ====================================================
     //                Material parameters
     // ====================================================
-    Kokkos::Array<double, NUM_GRAINS> grainRho;
-    for ( int i = 0; i < NUM_GRAINS; ++i )
-    {
-        grainRho[i] = inputs["density"][i];
-    }
+    double grainRho = inputs["density"][0];
 
     // Within-grain parameters
     double E_within = inputs["elastic_modulus"][0];
@@ -314,17 +311,21 @@ void polycrystalExample( const std::string filename )
     //                Polycrystal grains
     // ====================================================
     std::array<double, 3> extent = inputs["system_size"];
-    std::array<std::array<double, 3>, NUM_GRAINS> grainPosStd;
-    getPolycrystalGrains( extent, grainPosStd );
+    std::vector<std::array<double, 3>> grainPosStd;
+    getPolycrystalGrains( extent, NUM_GRAINS, grainPosStd );
 
-    // Shift grains relative to low_corner and copy to Kokkos::Array
-    Kokkos::Array<Kokkos::Array<double, 3>, NUM_GRAINS> grainPos;
+    // Shift grains relative to low_corner and copy to Kokkos::View
+    Kokkos::View<double**, Kokkos::HostSpace> grainPosHost("Host grain position", NUM_GRAINS, 3);
     for ( int i = 0; i < NUM_GRAINS; ++i )
     {
-        grainPos[i] = { grainPosStd[i][0] + low_corner[0],
-                        grainPosStd[i][1] + low_corner[1],
-                        grainPosStd[i][2] + low_corner[2] };
+        grainPosHost(i, 0) = grainPosStd[i][0] + low_corner[0];
+        grainPosHost(i, 1) = grainPosStd[i][1] + low_corner[1];
+        grainPosHost(i, 2) = grainPosStd[i][2] + low_corner[2];
     }
+    // Now copy from host memory to target memory_space 
+    Kokkos::View<double**, memory_space> grainPos;
+    Kokkos::deep_copy(grainPos, grainPosHost);
+    std::cout << "Made grains" << std::endl;
 
     // ====================================================
     //                   Force models
@@ -378,10 +379,9 @@ void polycrystalExample( const std::string filename )
         int grainIndex = 0;
         for ( int i = 0; i < NUM_GRAINS; ++i )
         {
-            const Kokkos::Array<double, 3>& pos = grainPos[i];
-            double dx = x( pid, 0 ) - pos[0];
-            double dy = x( pid, 1 ) - pos[1];
-            double dz = x( pid, 2 ) - pos[2];
+            double dx = x( pid, 0 ) - grainPos(i, 0);
+            double dy = x( pid, 1 ) - grainPos(i, 1);
+            double dz = x( pid, 2 ) - grainPos(i, 2);
             double check = dx * dx + dy * dy + dz * dz;
             if ( i == 0 || check < distSq )
             {
@@ -392,7 +392,7 @@ void polycrystalExample( const std::string filename )
 
         // Density and material type
         type( pid ) = grainIndex;
-        rho( pid ) = grainRho[grainIndex];
+        rho( pid ) = grainRho;
     };
     particles.update( exec_space{}, init_functor );
 
