@@ -90,6 +90,9 @@ double distSquared( const std::array<double, n>& a,
 template <std::size_t n, class RNGType>
 void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                           std::vector<std::array<double, n>>& outPoints,
+                          std::array<int, n>& outGridShape,
+                          std::vector<int>& outGrid,
+                          double& outCellSize,
                           RNGType& gen )
 {
     // Precompute reused values for sampling
@@ -221,6 +224,10 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
             activeSet.erase( activeSet.begin() + seedIndexInActive );
         }
     }
+
+    outGrid = std::move(grid);
+    outGridShape = gridShape;
+    outCellSize;
 }
 
 // Generates numGrains random polycrystal grain centers using
@@ -228,7 +235,11 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
 void getPolycrystalGrains(
     const std::array<double, 3>& extent,
     std::size_t numGrains,
-    std::vector<std::array<double, 3>>& outLocations )
+    std::vector<std::array<double, 3>>& outLocations
+    std::array<int, 3>& outGridShape,
+    std::vector<int>& outGrid,
+    double& outCellSize
+)
 {
     // Initialize RNG (for now with FIXED seed)
     std::minstd_rand baseRng;
@@ -247,7 +258,7 @@ void getPolycrystalGrains(
     {
         testPoints.clear();
         std::cout << "Sampling with radius " << radius << std::endl;
-        poissonDiscSampling( extent, radius, 30, testPoints, gen );
+        poissonDiscSampling( extent, radius, 30, testPoints, outGridShape, outGrid, outCellSize, gen );
         radius *= 0.95;
     } while ( testPoints.size() < numGrains );
 
@@ -258,6 +269,17 @@ void getPolycrystalGrains(
     for ( std::size_t i = 0; i < numGrains; ++i )
     {
         outLocations[i] = testPoints[indices[i]];
+    }
+    
+    // Remove unused points from the grid
+    for( std::size_t i = numGrains; < indices.size(); ++i )
+    {
+        std::array<int, 3> index = {
+            static_cast<int>(std::floor(testPoints[indices[i]][0] / outCellSize)),
+            static_cast<int>(std::floor(testPoints[indices[i]][1] / outCellSize)),
+            static_cast<int>(std::floor(testPoints[indices[i]][2] / outCellSize)),
+        };
+        outGrid[indexND(index, outGridShape)] = -1;
     }
 }
 
@@ -312,19 +334,38 @@ void polycrystalExample( const std::string filename )
     // ====================================================
     std::array<double, 3> extent = inputs["system_size"];
     std::vector<std::array<double, 3>> grainPosStd;
-    getPolycrystalGrains( extent, NUM_GRAINS, grainPosStd );
+    std::array<int, 3> grainGridShape;
+    Kokkos::MDRangePolicy grainGridRange({0, 0, 0}, {grainGridShape[0], grainGridShape[1], grainGridShape[2]});
+    std::vector<int> grainGrid;
+    double grainGridCellSize;
 
+    getPolycrystalGrains( extent, NUM_GRAINS, grainPosStd, grainGridShape, grainGrid, grainGridCellSize );
+    
     // Shift grains relative to low_corner and copy to Kokkos::View
-    Kokkos::View<double**, Kokkos::HostSpace> grainPosHost("Host grain position", NUM_GRAINS, 3);
+    // and also copy grid to Kokkos::View
+    Kokkos::View<double*[3], Kokkos::HostSpace> grainPosHost("Host grain position", NUM_GRAINS);
+    Kokkos::View<int***, Kokkos::HostSpace> grainGridHost("Host grain grid", grainGridShape[0], grainGridShape[1], grainGridShape[2]);
+    Kokkos::parallel_for("Init grain grid", grainGridRange, KOKKOS_LAMBDA(int ix, int iy, int iz){
+        grainGridHost(ix, iy, iz) = -1;
+    });
+
     for ( int i = 0; i < NUM_GRAINS; ++i )
     {
         grainPosHost(i, 0) = grainPosStd[i][0] + low_corner[0];
         grainPosHost(i, 1) = grainPosStd[i][1] + low_corner[1];
         grainPosHost(i, 2) = grainPosStd[i][2] + low_corner[2];
+        std::array<int, 3> index = {
+            static_cast<int>(std::floor(testPoints[indices[i]][0] / outCellSize)),
+            static_cast<int>(std::floor(testPoints[indices[i]][1] / outCellSize)),
+            static_cast<int>(std::floor(testPoints[indices[i]][2] / outCellSize)),
+        };
+        grainGridHost(index[0], index[1], index[2]) = i;
     }
     // Now copy from host memory to target memory_space 
     Kokkos::View<double**, memory_space> grainPos;
+    Kokkos::View<int***, memory_space> grainGrid("Grain grid", grainGridShape[0], grainGridShape[1], grainGridShape[2]);
     Kokkos::deep_copy(grainPos, grainPosHost);
+    Kokkos::deep_copy(grainGrid, grainGridHost);
     std::cout << "Made grains" << std::endl;
 
     // ====================================================
@@ -366,6 +407,10 @@ void polycrystalExample( const std::string filename )
     auto f = particles.sliceForce();
     auto nofail = particles.sliceNoFail();
     auto type = particles.sliceType();
+    
+    int sizeX = grainGridShape[0];
+    int sizeY = grainGridShape[1];
+    int sizeZ = grainGridShape[2];
 
     auto init_functor = KOKKOS_LAMBDA( const int pid )
     {
@@ -377,21 +422,124 @@ void polycrystalExample( const std::string filename )
         // Distance squared from nearest grain location
         double distSq = 0.0;
         int grainIndex = 0;
-        for ( int i = 0; i < NUM_GRAINS; ++i )
+        int gx = static_cast<int>(Kokkos::floor(x(pid, 0) / grainGridCellSize));
+        int gy = static_cast<int>(Kokkos::floor(x(pid, 1) / grainGridCellSize));
+        int gz = static_cast<int>(Kokkos::floor(x(pid, 2) / grainGridCellSize));
+
+        // Search for any grain in shells of increasing size
+        int shellRadius = 0;
+        int guessIndex = -1;
+        while (guessIndex == -1)
         {
-            double dx = x( pid, 0 ) - grainPos(i, 0);
-            double dy = x( pid, 1 ) - grainPos(i, 1);
-            double dz = x( pid, 2 ) - grainPos(i, 2);
-            double check = dx * dx + dy * dy + dz * dz;
-            if ( i == 0 || check < distSq )
+            // X planes
+            for(int sy = Kokkos::max(gy - shellRadius, 0); sy <= Kokkos::min(gy + shellRadius, sizeY - 1); ++sy) 
             {
-                distSq = check;
-                grainIndex = i;
+                for(int sz = Kokkos::max(gz - shellRadius, 0); sz <= Kokkos::min(gz + shellRadius, sizeZ - 1); ++sz) 
+                {
+                    sx = Kokkos::max(gx - shellRadius, 0);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sy = Kokkos::min(gy + shellRadius, sizeY - 1) + 1;
+                        break;
+                    }
+
+                    sx = Kokkos::min(gx + shellRadius, sizeX - 1);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sy = Kokkos::min(gy + shellRadius, sizeY - 1) + 1;
+                        break;
+                    }
+                }
+            }
+
+            if (guessIndex > 0)
+                break;
+
+            // Y planes
+            for(int sx = Kokkos::max(gx - shellRadius, 0); sx <= Kokkos::min(gx + shellRadius, sizeX - 1); ++sx) 
+            {
+                for(int sz = Kokkos::max(gz - shellRadius, 0); sz <= Kokkos::min(gz + shellRadius, sizeZ - 1); ++sz) 
+                {
+                    sy = Kokkos::max(gy - shellRadius, 0);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sx = Kokkos::min(gx + shellRadius, sizeX - 1) + 1;
+                        break;
+                    }
+
+                    sy = Kokkos::min(gy + shellRadius, sizeY - 1);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sx = Kokkos::min(gx + shellRadius, sizeX - 1) + 1;
+                        break;
+                    }
+                }
+            }
+
+            if (guessIndex > 0)
+                break;
+
+            // Z planes
+            for(int sy = Kokkos::max(gy - shellRadius, 0); sy <= Kokkos::min(gy + shellRadius, sizeY - 1); ++sy) 
+            {
+                for(int sx = Kokkos::max(gx - shellRadius, 0); sx <= Kokkos::min(gx + shellRadius, sizeX - 1); ++sx) 
+                {
+                    sz = Kokkos::max(gz - shellRadius, 0);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sy = Kokkos::min(gy + shellRadius, sizeY - 1) + 1;
+                        break;
+                    }
+
+                    sz = Kokkos::min(gz + shellRadius, sizeZ - 1);
+                    guessIndex = grainGrid(sx, sy, sz);
+                    if (guessIndex > 0)
+                    {
+                        sy = Kokkos::min(gy + shellRadius, sizeY - 1) + 1;
+                        break;
+                    }
+                }
+            }
+
+            ++shellRadius;
+        }
+
+        // Now find the nearest grain center
+        double guessDX = grainPos(guessIndex, 0) - x(pid, 0);
+        double guessDY = grainPos(guessIndex, 1) - x(pid, 1);
+        double guessDZ = grainPos(guessIndex, 2) - x(pid, 2);
+        double dist = Kokkos::sqrt(guessDX * guessDX + guessDY * guessDY + guessDZ * guessDZ);
+        int gridSearchDist = static_cast<int>(Kokkos::ceil(dist / grainGridCellSize));
+
+        double closestDist = dist;
+        int closestIndex = guessIndex;
+        for(int sx = Kokkos::max(gx - gridSearchDist, 0); sx <= Kokkos::min(gx + gridSearchDist, sizeX - 1); ++sx)
+        {
+            for(int sy = Kokkos::max(gy - gridSearchDist, 0); sy <= Kokkos::min(gy + gridSearchDist, sizeY - 1); ++sy)
+            {
+                for(int sz = Kokkos::max(gz - gridSearchDist, 0); sz <= Kokkos::min(gz + gridSearchDist, sizeZ - 1); ++sz)
+                {
+                    int testIndex = grainGrid(sx, sy, sz);
+                    double testDX = grainPos(testIndex, 0) - x(pid, 0);
+                    double testDY = grainPos(testIndex, 1) - x(pid, 1);
+                    double testDZ = grainPos(testIndex, 2) - x(pid, 2);
+                    double testDist = Kokkos::sqrt(testDX * testDX + testDY * testDY + testDZ * testDZ);
+                    if (testDist < closestDist)
+                    {
+                        closestDist = testDist;
+                        closestIndex = testIndex;
+                    }
+                }
             }
         }
 
-        // Density and material type
-        type( pid ) = grainIndex;
+        // Set material type and density
+        type( pid ) = closestIndex;
         rho( pid ) = grainRho;
     };
     particles.update( exec_space{}, init_functor );
