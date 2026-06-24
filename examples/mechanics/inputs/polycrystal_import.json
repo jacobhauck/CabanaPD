@@ -5,7 +5,7 @@
     "horizon"                : {"value": 2.1875e-5, "unit": "m"},
     "max_traction"           : {"value": 8e7, "unit": "Pa"},
     "half_cycle_interval"    : {"value": 0.001, "unit": "s"},
-    "num_cycles"             : {"value": 1.0},
+    "final_time"             : {"value": 0.002, "units": "s"},
     "timestep"               : {"value": 4.0e-6, "unit": "s"},
     "timestep_safety_factor" : {"value": 0.85},
     "output_frequency"       : {"value": 200},
