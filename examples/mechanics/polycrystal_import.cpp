@@ -378,6 +378,7 @@ void polycrystalImportExample( const std::string& filename )
     CabanaPD::BinaryIndexing indexing;
     auto models = CabanaPD::createMultiForceModel(
         particles, indexing, force_model_within, force_model_between );
+    inputs["final_time"] = 2 * inputs["half_cycle_interval"] * inputs["num_cycles"];
     CabanaPD::Solver solver( inputs, particles, models );
     std::cout << "Created solver" << std::endl;
 
