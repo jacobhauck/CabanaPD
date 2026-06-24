@@ -410,7 +410,7 @@ void polycrystalImportExample( const std::string& filename )
     {
         x(pid, 2) = fixedZ;
     };
-    auto bc_fixed = createBoundaryCondition( bc_fixed_fn, exec_space{}, solver.particlese,
+    auto bc_fixed = createBoundaryCondition( bc_fixed_fn, exec_space{}, solver.particles,
                                              true, bottomPlane );
 
     std::cout << "Imposed boundary conditions" << std::endl;
