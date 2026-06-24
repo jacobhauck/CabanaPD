@@ -244,7 +244,7 @@ void polycrystalImportExample( const std::string& filename )
     // ====================================================
     
     // All grains have the same density
-    double density = inputs["density"][0];
+    double density = inputs["density"];
     
     // Within-grain parameters
     double E_within = inputs["elastic_modulus"][0];
