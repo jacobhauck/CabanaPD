@@ -385,7 +385,7 @@ void polycrystalImportExample( const std::string& filename )
     //                Boundary conditions
     // ====================================================
     // Create BC last to ensure ghost particles are included.
-    double sigma0 = inputs["traction"];
+    double sigma0 = inputs["max_traction"];
     double b0 = sigma0 / horizon;
     double halfCycleInterval = inputs["half_cycle_interval"];
     double db0_dt = b0 / halfCycleInterval;
