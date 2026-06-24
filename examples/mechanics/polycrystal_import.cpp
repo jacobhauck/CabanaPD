@@ -318,13 +318,25 @@ void polycrystalImportExample( const std::string& filename )
     // ====================================================
     //                Boundary conditions planes
     // ====================================================
-    double dy = particles.dx[1];
-    CabanaPD::Region<CabanaPD::RectangularPrism> plane1(
-        low_corner[0], high_corner[0], low_corner[1] - dy, low_corner[1] + dy,
-        low_corner[2], high_corner[2] );
-    CabanaPD::Region<CabanaPD::RectangularPrism> plane2(
-        low_corner[0], high_corner[0], high_corner[1] - dy, high_corner[1] + dy,
-        low_corner[2], high_corner[2] );
+    double dz = particles.dx[1];
+    // The bottom (fixed) plane
+    CabanaPD::Region<CabanaPD::RectangularPrism> bottomPlane(
+        low_corner[0], high_corner[0], low_corner[1], high_corner[1],
+        low_corner[2] - dz, low_corner[2] + dz );
+
+    // The top (moving) plane
+    CabanaPD::Region<CabanaPD::RectangularPrism> topPlane(
+        low_corner[0], high_corner[0], low_corner[1], high_corner[1],
+        high_corner[2] - dz, high_corner[2] + dz );
+
+    // The square traction region
+    double tractionRegionSize = inputs["traction_region"];
+    double midX = (low_corner[0] + high_corner[0]) / 2.0;
+    double midY = (low_corner[1] + high_corner[1]) / 2.0;
+    CabanaPD::Region<CabanaPD::RectangularPrism> forcePlane(
+        midX - tractionRegionSize / 2.0, midX + tractionRegionSize / 2.0,
+        midY - tractionRegionSize / 2.0, midY + tractionRegionSize / 2.0,
+        high_corner[2] - horizon, high_corner[2] + dz );
 
     // ====================================================
     //            Custom particle initialization
@@ -339,8 +351,8 @@ void polycrystalImportExample( const std::string& filename )
     auto init_functor = KOKKOS_LAMBDA( const int pid )
     {
         // No-fail zone
-        if ( x( pid, 1 ) <= plane1.low[1] + horizon ||
-             x( pid, 1 ) >= plane2.high[1] - horizon )
+        if ( x( pid, 2 ) <= bottomPlane.low[2] + horizon ||
+             x( pid, 2 ) >= topPlane.high[2] - horizon )
             nofail( pid ) = 1;
 
         // Nearest-neighbor interpolation to get grain type
@@ -375,26 +387,40 @@ void polycrystalImportExample( const std::string& filename )
     // ====================================================
     // Create BC last to ensure ghost particles are included.
     double sigma0 = inputs["traction"];
-    double b0 = sigma0 / dy;
+    double b0 = sigma0 / horizon;
+    double halfCycleInterval = inputs["half_cycle_interval"];
+    double db0_dt = b0 / halfCycleInterval;
     f = solver.particles.sliceForce();
     x = solver.particles.sliceReferencePosition();
-    // Create a symmetric force BC in the y-direction.
-    auto bc_op = KOKKOS_LAMBDA( const int pid, const double )
+    // Apply periodic triangle traction on upper plane
+    auto bc_traction_fn = KOKKOS_LAMBDA( const int pid, const double t )
     {
-        auto ypos = x( pid, 1 );
-        auto sign = std::abs( ypos ) / ypos;
-        f( pid, 1 ) += b0 * sign;
+        int halfCycle = Kokkos::floor(t / halfCycleInterval);
+        int isLastHalf = (halfCycle % 2);
+        double halfCycleStart = static_cast<double>(halfCycle) * halfCycleInterval;
+        double slope = db0_dt * static_cast<double>(1 - 2 * isLastHalf);
+        double intercept = b0 * static_cast<double>(isLastHalf);
+        f( pid, 2 ) += slope * (t - halfCycleStart) + intercept;
     };
-    auto bc = createBoundaryCondition( bc_op, exec_space{}, solver.particles,
-                                       true, plane1, plane2 );
+    auto bc_traction = createBoundaryCondition( bc_traction_fn, exec_space{}, solver.particles,
+                                                true, forcePlane );
+
+    double fixedZ = low_corner[2];
+    auto bc_fixed_fn = KOKKOS_LAMBDA( const int pid, const double t )
+    {
+        x(pid, 2) = fixedZ;
+    };
+    auto bc_fixed = createBoundaryCondition( bc_fixed_fn, exec_space{}, solver.particlese,
+                                             true, bottomPlane );
+
     std::cout << "Imposed boundary conditions" << std::endl;
 
     // ====================================================
     //                   Simulation run
     // ====================================================
-    solver.init( bc );
+    solver.init( bc_traction, bc_fixed );
     std::cout << "Initialized solver" << std::endl;
-    solver.run( bc );
+    solver.run( bc_traction, bc_fixed );
 }
 
 // Initialize MPI+Kokkos.
