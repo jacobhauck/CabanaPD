@@ -411,7 +411,7 @@ void polycrystalImportExample( const std::string& filename )
             f( pid, 2 ) += slope * (t - halfCycleStart) + intercept;
         }
     };
-    auto bc = createBoundaryCondition( bc_traction_fn, exec_space{}, solver.particles,
+    auto bc = createBoundaryCondition( bc_fn, exec_space{}, solver.particles,
                                        true, forcePlane, bottomPlane );
 
     std::cout << "Imposed boundary conditions" << std::endl;
