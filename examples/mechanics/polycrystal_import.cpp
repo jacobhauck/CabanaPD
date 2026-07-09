@@ -313,7 +313,7 @@ void polycrystalImportExample( const std::string& filename )
         horizon / ( ( high_corner[0] - low_corner[0] ) / num_cells[0] ) );
     int halo_width = m + 1; // Just to be safe.
     particles.domain( low_corner_std, high_corner_std, num_cells, halo_width );
-    particles.create( exec_space{} );
+    particles.create( exec_space{}, Cabana::InitRandom{}, particles, 0, false );
 
     // ====================================================
     //                Boundary conditions planes
@@ -321,7 +321,7 @@ void polycrystalImportExample( const std::string& filename )
     // The bottom (fixed) plane
     CabanaPD::Region<CabanaPD::RectangularPrism> bottomPlane(
         low_corner[0], high_corner[0], low_corner[1], high_corner[1],
-        low_corner[2] - horizon, low_corner[2] + horizon );
+        low_corner[2], low_corner[2] + horizon );
 
     // The top (moving) plane
     CabanaPD::Region<CabanaPD::RectangularPrism> topPlane(
@@ -335,7 +335,7 @@ void polycrystalImportExample( const std::string& filename )
     CabanaPD::Region<CabanaPD::RectangularPrism> forcePlane(
         midX - tractionRegionSize / 2.0, midX + tractionRegionSize / 2.0,
         midY - tractionRegionSize / 2.0, midY + tractionRegionSize / 2.0,
-        high_corner[2] - horizon, high_corner[2] + horizon );
+        high_corner[2] - horizon, high_corner[2] );
 
     // ====================================================
     //            Custom particle initialization
@@ -349,9 +349,8 @@ void polycrystalImportExample( const std::string& filename )
 
     auto init_functor = KOKKOS_LAMBDA( const int pid )
     {
-        // No-fail zone
-        if ( x( pid, 2 ) <= bottomPlane.high[2] ||
-             x( pid, 2 ) >= topPlane.low[2] )
+        // No-fail zone--add extra no-fail layer outside of boundary regions
+        if ( x( pid, 2 ) <= bottomPlane.high[2] + horizon )
             nofail( pid ) = 1;
 
         // Nearest-neighbor interpolation to get grain type
@@ -397,8 +396,10 @@ void polycrystalImportExample( const std::string& filename )
     // fixed boundary condition (zero displacement) on lower plane
     auto bc_fn = KOKKOS_LAMBDA( const int pid, const double t )
     {
-        if( x(pid, 2) <= bottomPlane.high[2] + horizon )
+        if( x(pid, 2) <= bottomPlane.high[2] )
         {
+            u(pid, 0) = 0.0;
+            u(pid, 1) = 0.0;
             u(pid, 2) = 0.0;
         }
         else
