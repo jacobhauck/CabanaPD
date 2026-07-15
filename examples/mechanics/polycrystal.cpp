@@ -10,7 +10,7 @@
 
 #include <CabanaPD.hpp>
 
-constexpr std::size_t NUM_GRAINS = 300000;
+constexpr std::size_t NUM_GRAINS = 1000;
 constexpr double PI = 3.141592653589793238462643383;
 
 // Get flat index into ND array
@@ -537,10 +537,6 @@ void polycrystalExample( const std::string filename )
                 }
             }
         }
-        if(pid % 10000 == 0)
-        {
-            std::cout << "Assigned" << pid << std::endl;   
-        }
 
         // Set material type and density
         type( pid ) = closestIndex;
@@ -561,16 +557,23 @@ void polycrystalExample( const std::string filename )
     //                Boundary conditions
     // ====================================================
     // Create BC last to ensure ghost particles are included.
-    double sigma0 = inputs["traction"];
-    double b0 = sigma0 / dy;
+    double v0 = inputs["speed"];
     f = solver.particles.sliceForce();
     x = solver.particles.sliceReferencePosition();
-    // Create a symmetric force BC in the y-direction.
-    auto bc_op = KOKKOS_LAMBDA( const int pid, const double )
+    // Create symmetric displacement boundary condition
+    auto bc_op = KOKKOS_LAMBDA( const int pid, const double t )
     {
         auto ypos = x( pid, 1 );
-        auto sign = std::abs( ypos ) / ypos;
-        f( pid, 1 ) += b0 * sign;
+        auto sign = 0.0;
+        if( ypos > 0 )
+        {
+            sign = 1.0;
+        }
+        else
+        {
+            sign = -1.0;
+        }
+        x( pid, 1 ) = sign * v0 * t;
     };
     auto bc = createBoundaryCondition( bc_op, exec_space{}, solver.particles,
                                        true, plane1, plane2 );
