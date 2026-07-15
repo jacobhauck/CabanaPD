@@ -558,12 +558,14 @@ void polycrystalExample( const std::string filename )
     // ====================================================
     // Create BC last to ensure ghost particles are included.
     double v0 = inputs["speed"];
+    double maxY = high_corner[1];
+    double midY = (minY + maxY) / 2.0;
     f = solver.particles.sliceForce();
     x = solver.particles.sliceReferencePosition();
     // Create symmetric displacement boundary condition
     auto bc_op = KOKKOS_LAMBDA( const int pid, const double t )
     {
-        auto ypos = x( pid, 1 );
+        auto ypos = x( pid, 1 ) - midY;
         auto sign = 0.0;
         if( ypos > 0 )
         {
