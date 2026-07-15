@@ -565,17 +565,20 @@ void polycrystalExample( const std::string filename )
     // Create symmetric displacement boundary condition
     auto bc_op = KOKKOS_LAMBDA( const int pid, const double t )
     {
-        auto ypos = x( pid, 1 ) - midY;
-        auto sign = 0.0;
+        double ypos = x( pid, 1 ) - midY;
+        double sign = 0.0;
+        double start = 0.0;
         if( ypos > 0 )
         {
+            start = maxY;
             sign = 1.0;
         }
         else
         {
+            start = minY;
             sign = -1.0;
         }
-        x( pid, 1 ) = sign * v0 * t;
+        x( pid, 1 ) = start + sign * v0 * t;
     };
     auto bc = createBoundaryCondition( bc_op, exec_space{}, solver.particles,
                                        true, plane1, plane2 );
