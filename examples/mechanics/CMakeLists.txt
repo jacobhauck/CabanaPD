@@ -25,4 +25,4 @@ target_link_libraries(CrackInclusion LINK_PUBLIC CabanaPD)
 add_executable(PolycrystalExaCA polycrystal_exaca.cpp)
 target_link_libraries(PolycrystalExaCA LINK_PUBLIC CabanaPD)
 
-install(TARGETS ElasticWave KalthoffWinkler CrackBranching FragmentingCylinder RandomCracks DogboneTensileTest PlateWithHole CrackInclusion Polycrystal PolycrystalImport DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS ElasticWave KalthoffWinkler CrackBranching FragmentingCylinder RandomCracks DogboneTensileTest PlateWithHole CrackInclusion PolycrystalExaCA DESTINATION ${CMAKE_INSTALL_BINDIR})
