@@ -254,12 +254,9 @@ void getPolycrystalGrains(
     do
     {
         testPoints.clear();
-        std::cout << "Sampling with radius " << radius << std::endl;
         poissonDiscSampling( extent, radius, 30, testPoints, outGridShape, outCellSize, gen );
         radius *= 0.95;
-        std::cout << "Found points: " << testPoints.size() << std::endl;
     } while ( testPoints.size() < numGrains );
-    std::cout << "Found suitable radius" << std::endl;
 
     // Randomly choose grains locations from candidates
     std::vector<std::size_t> indices( testPoints.size() );
@@ -270,7 +267,6 @@ void getPolycrystalGrains(
     {
         outLocations[i] = testPoints[indices[i]];
     }
-    std::cout << "Subsampled points" << std::endl;
 }
 
 // Simulate a crack in a polycrystal
@@ -328,19 +324,15 @@ void polycrystalExample( const std::string filename )
     double grainGridCellSize;
 
     getPolycrystalGrains( extent, NUM_GRAINS, grainPosStd, grainGridShape, grainGridCellSize );
-    std::cout << "Called getPolycrystalGrains" << std::endl;
-    std::cout << "Grid cell size = " << grainGridCellSize << std::endl;
     
     // Shift grains relative to low_corner and copy to Kokkos::View
     // and also copy grid to Kokkos::View
     Kokkos::View<double*[3], Kokkos::HostSpace> grainPosHost("Host grain position", NUM_GRAINS);
     Kokkos::View<int***, Kokkos::HostSpace> grainGridHost("Host grain grid", grainGridShape[0], grainGridShape[1], grainGridShape[2]);
-    std::cout << "Allocated host memory" << std::endl;
     Kokkos::MDRangePolicy grainGridRange({0, 0, 0}, {grainGridShape[0], grainGridShape[1], grainGridShape[2]});
     Kokkos::parallel_for("Init grain grid", grainGridRange, KOKKOS_LAMBDA(int ix, int iy, int iz){
         grainGridHost(ix, iy, iz) = -1;
     });
-    std::cout << "Initialized grain grid" << std::endl;
 
     for ( int i = 0; i < NUM_GRAINS; ++i )
     {
@@ -355,14 +347,12 @@ void polycrystalExample( const std::string filename )
         };
         grainGridHost(index[0], index[1], index[2]) = i;
     }
-    std::cout << "Wrote to grainPosHost and grainGridHost" << std::endl;
+
     // Now copy from host memory to target memory_space 
     Kokkos::View<double**, memory_space> grainPos("Grain positions", NUM_GRAINS, 3);
     Kokkos::View<int***, memory_space> grainGrid("Grain grid", grainGridShape[0], grainGridShape[1], grainGridShape[2]);
-    std::cout << "Allocated grainPos and grainGrid" << std::endl;
     Kokkos::deep_copy(grainPos, grainPosHost);
     Kokkos::deep_copy(grainGrid, grainGridHost);
-    std::cout << "Made grains" << std::endl;
 
     // ====================================================
     //                   Force models
@@ -382,7 +372,6 @@ void polycrystalExample( const std::string filename )
     CabanaPD::Particles particles( memory_space{}, model_type{} );
     particles.domain( inputs );
     particles.create( exec_space{} );
-    std::cout << "Created particles" << std::endl;
 
     // ====================================================
     //                Boundary conditions planes
@@ -543,7 +532,6 @@ void polycrystalExample( const std::string filename )
         rho( pid ) = grainRho;
     };
     particles.update( exec_space{}, init_functor );
-    std::cout << "Set grains" << std::endl;
 
     // ====================================================
     //                   Create solver
