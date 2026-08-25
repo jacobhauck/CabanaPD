@@ -8,7 +8,7 @@
     "speed"                  : {"value": 0.4, "unit": "m/s"},
     "output_frequency"       : {"value": 50},
     "output_reference"       : {"value": false},
-    "grain_file"             : {"value": "aniso.vtk"},
+    "grain_file"             : {"value": "grains.vtk"},
     
     "density"                : {"value": 2440, "unit": "kg/m^3"},
     "elastic_modulus"        : {"value": [72e+9, 30e+9], "unit": "Pa"},

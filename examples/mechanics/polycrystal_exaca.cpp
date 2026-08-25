@@ -344,12 +344,10 @@ void polycrystalImportExample( const std::string& filename )
         zGrainIndex = zGrainIndex < grain_grid_shape[2] ? zGrainIndex : grain_grid_shape[2] - 1;
         
         // Set density and material type
-        //std::cout << "(" << pid << ") " << xGrainIndex << ", " << yGrainIndex << ", " << zGrainIndex << ": " << grainIDs(zGrainIndex, xGrainIndex, yGrainIndex) << std::endl;
         type( pid ) = grainIDs(zGrainIndex, xGrainIndex, yGrainIndex);
         rho( pid ) = density;
     };
     particles.update( exec_space{}, init_functor );
-    std::cout << "Initialized particles" << std::endl;
 
     // ====================================================
     //                   Create solver
@@ -358,7 +356,6 @@ void polycrystalImportExample( const std::string& filename )
     auto models = CabanaPD::createMultiForceModel(
         particles, indexing, force_model_within, force_model_between );
     CabanaPD::Solver solver( inputs, particles, models );
-    std::cout << "Created solver" << std::endl;
 
     // ====================================================
     //                Boundary conditions
@@ -400,7 +397,6 @@ void polycrystalImportExample( const std::string& filename )
     //                   Simulation run
     // ====================================================
     solver.init( bc );
-    std::cout << "Initialized solver" << std::endl;
     solver.run( bc );
 }
 
