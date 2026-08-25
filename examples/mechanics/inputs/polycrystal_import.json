@@ -1,19 +1,17 @@
 {
     "num_cells"              : {"value": [96, 96, 40]},
     "system_size"            : {"value": [0.0012, 0.0012, 0.0005], "unit": "m"},
-    "traction_region"        : {"value": 0.0004, "unit": "m"},
     "horizon"                : {"value": 3.75e-5, "unit": "m"},
-    "max_traction"           : {"value": 75e6, "unit": "Pa"},
-    "half_cycle_interval"    : {"value": 18e-7, "unit": "s"},
-    "final_time"             : {"value": 36e-7, "unit": "s"},
-    "timestep"               : {"value": 9e-10, "unit": "s"},
+    "final_time"             : {"value": 18e-7, "unit": "s"},
+    "timestep"               : {"value": 4.5e-10, "unit": "s"},
     "timestep_safety_factor" : {"value": 0.85},
+    "speed"                  : {"value": 0.4, "unit": "m/s"},
     "output_frequency"       : {"value": 50},
     "output_reference"       : {"value": false},
-    "grain_file"             : {"value": "TestProblemDirS.vtk"},
+    "grain_file"             : {"value": "aniso.vtk"},
     
     "density"                : {"value": 2440, "unit": "kg/m^3"},
-    "elastic_modulus"        : {"value": [72e+9, 72e+9], "unit": "Pa"},
+    "elastic_modulus"        : {"value": [72e+9, 30e+9], "unit": "Pa"},
     "Poisson's_ratio"        : {"value": [0.22, 0.22]},
-    "fracture_energy"        : {"value": [38.0, 3.8], "unit": "J/m^2"}
+    "fracture_energy"        : {"value": [38.0, 0.065], "unit": "J/m^2"}
 }

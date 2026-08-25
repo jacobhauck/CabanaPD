@@ -316,28 +316,6 @@ void polycrystalImportExample( const std::string& filename )
     particles.create( exec_space{}, Cabana::InitRandom{}, particles, 0, false );
 
     // ====================================================
-    //                Boundary conditions planes
-    // ====================================================
-    // The bottom (fixed) plane
-    CabanaPD::Region<CabanaPD::RectangularPrism> bottomPlane(
-        low_corner[0], high_corner[0], low_corner[1], high_corner[1],
-        low_corner[2], low_corner[2] + horizon );
-
-    // The top (moving) plane
-    CabanaPD::Region<CabanaPD::RectangularPrism> topPlane(
-        low_corner[0], high_corner[0], low_corner[1], high_corner[1],
-        high_corner[2] - horizon, high_corner[2] + horizon );
-
-    // The square traction region
-    double tractionRegionSize = inputs["traction_region"];
-    double midX = (low_corner[0] + high_corner[0]) / 2.0;
-    double midY = (low_corner[1] + high_corner[1]) / 2.0;
-    CabanaPD::Region<CabanaPD::RectangularPrism> forcePlane(
-        midX - tractionRegionSize / 2.0, midX + tractionRegionSize / 2.0,
-        midY - tractionRegionSize / 2.0, midY + tractionRegionSize / 2.0,
-        high_corner[2] - horizon, high_corner[2] );
-
-    // ====================================================
     //            Custom particle initialization
     // ====================================================
     auto rho = particles.sliceDensity();
@@ -346,11 +324,13 @@ void polycrystalImportExample( const std::string& filename )
     auto f = particles.sliceForce();
     auto nofail = particles.sliceNoFail();
     auto type = particles.sliceType();
+    double maxY = high_corner[1];
+    double minY = low_corner[1];
 
     auto init_functor = KOKKOS_LAMBDA( const int pid )
     {
         // No-fail zone--add extra no-fail layer outside of boundary regions
-        if ( x( pid, 2 ) <= bottomPlane.high[2] + horizon )
+        if ( x( pid, 1 ) >= maxY - horizon || x( pid, 1) <= minY + horizon)
             nofail( pid ) = 1;
 
         // Nearest-neighbor interpolation to get grain type
@@ -384,38 +364,37 @@ void polycrystalImportExample( const std::string& filename )
     //                Boundary conditions
     // ====================================================
     // Create BC last to ensure ghost particles are included.
-    double sigma0 = inputs["max_traction"];
-    double b0 = sigma0 / horizon;
-    double halfCycleInterval = inputs["half_cycle_interval"];
-    double db0_dt = b0 / halfCycleInterval;
-    f = solver.particles.sliceForce();
-    x = solver.particles.sliceReferencePosition();
+    double v0 = inputs["speed"];
+    double midY = (minY + maxY) / 2.0;
     auto u = solver.particles.sliceDisplacement();
-
-    // Apply periodic triangle traction on upper plane and 
-    // fixed boundary condition (zero displacement) on lower plane
-    auto bc_fn = KOKKOS_LAMBDA( const int pid, const double t )
+    x = solver.particles.sliceReferencePosition();
+    
+    auto bc_op = KOKKOS_LAMBDA( const int pid, const double t )
     {
-        if( x(pid, 2) <= bottomPlane.high[2] )
+        double ypos = x( pid, 1 ) - midY;
+        double sign = 0.0;
+        if ( ypos < 0.0 )
         {
-            u(pid, 0) = 0.0;
-            u(pid, 1) = 0.0;
-            u(pid, 2) = 0.0;
+            sign = -1.0;
         }
-        else
+        else 
         {
-            int halfCycle = Kokkos::floor(t / halfCycleInterval);
-            int isLastHalf = (halfCycle % 2);
-            double halfCycleStart = static_cast<double>(halfCycle) * halfCycleInterval;
-            double slope = db0_dt * static_cast<double>(1 - 2 * isLastHalf);
-            double intercept = b0 * static_cast<double>(isLastHalf);
-            f( pid, 2 ) += slope * (t - halfCycleStart) + intercept;
+            sign = 1.0;
         }
+        u( pid, 1) = sign * v0 * t;
     };
-    auto bc = createBoundaryCondition( bc_fn, exec_space{}, solver.particles,
-                                       true, forcePlane, bottomPlane );
-
-    std::cout << "Imposed boundary conditions" << std::endl;
+    double dy = particles.dx[1];
+    CabanaPD::Region<CabanaPD::RectangularPrism> bcPlaneBottom(
+        low_corner[0], high_corner[0], low_corner[1], low_corner[1] + dy,
+        low_corner[2], high_corner[2]
+    );
+    CabanaPD::Region<CabanaPD::RectangularPrism> bcPlaneTop(
+        low_corner[0], high_corner[0], high_corner[1] - dy, high_corner[1],
+        low_corner[2], high_corner[2]
+    );
+    auto bc = createBoundaryCondition(bc_op, exec_space{}, solver.particles,
+                                      true, bcPlaneBottom, bcPlaneTop);
+    
 
     // ====================================================
     //                   Simulation run
