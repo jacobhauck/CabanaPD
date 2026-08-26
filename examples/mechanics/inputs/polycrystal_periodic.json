@@ -10,7 +10,7 @@
     "timestep_safety_factor" : {"value": 0.85},
     "output_frequency"       : {"value": 50},
     "output_reference"       : {"value": false},
-    "grain_file"             : {"value": "TestProblemDirS.vtk"},
+    "grain_file"             : {"value": "grains.vtk"},
     
     "density"                : {"value": 2440, "unit": "kg/m^3"},
     "elastic_modulus"        : {"value": [72e+9, 72e+9], "unit": "Pa"},
