@@ -1,6 +1,6 @@
 {
-    "num_cells"              : {"value": [96, 96, 40]},
-    "system_size"            : {"value": [0.0012, 0.0012, 0.0005], "unit": "m"},
+    "num_cells"              : {"value": [96, 40, 96]},
+    "system_size"            : {"value": [0.0012, 0.0005, 0.0012], "unit": "m"},
     "traction_region"        : {"value": 0.0004, "unit": "m"},
     "horizon"                : {"value": 3.75e-5, "unit": "m"},
     "max_traction"           : {"value": 75e6, "unit": "Pa"},
