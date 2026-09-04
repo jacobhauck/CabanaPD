@@ -202,7 +202,7 @@ void polycrystalImportExample( const std::string& filename )
                 static_cast<double>( halfCycle ) * halfCycleInterval;
             double slope = db0_dt * static_cast<double>( 1 - 2 * isLastHalf );
             double intercept = b0 * static_cast<double>( isLastHalf );
-            f( pid, 2 ) += slope * ( t - halfCycleStart ) + intercept;
+            f( pid, 1 ) += slope * ( t - halfCycleStart ) + intercept;
         }
     };
     auto bc = createBoundaryCondition( bc_fn, exec_space{}, solver.particles,
