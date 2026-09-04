@@ -75,7 +75,7 @@ bool isValid( const std::array<int, n>& idx, const std::array<int, n>& shape )
 
 // Recursive function to generate the set of *relative* multi-indices of
 // grid cells that may contain points within a distance r of a generated
-// point in C (see equation (13)). Each recursion step handles one axis.
+// point in C (see equation (12)). Each recursion step handles one axis.
 //
 // Parameters
 // ----------
@@ -117,7 +117,7 @@ void makeRelativeIndicesRecursive(
 
 // Generate the set of *relative* multi-indices of grid cells that may
 // contain points within a distance r of a generated point in C 
-// (see equation (13)). 
+// (see equation (12)). 
 //
 // Parameters
 // ----------
@@ -200,13 +200,17 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
     // Initialize empty grid (as flat array)
     std::vector<int> grid( totalCells, -1 );
 
-    // Calculate grid search relative indices (see equation (13))
+    // Calculate grid search relative indices (see equation (12))
     std::vector<std::array<int, n>> nbrIndicesRel;
     makeNeighborRelativeIndices( nbrIndicesRel );
 
-    // Create random number generator to get uniform numbers on [0,]
+    // Create random number generator to get uniform numbers on [0, 1]
     std::uniform_real_distribution<double> coordDist( 0.0, 1.0 );
     auto coordGen = std::bind( coordDist, gen );
+
+    // And a standard normal random number generator
+    std::normal_distribution<double> normalDist;
+    auto normalGen = std::bind( normalDist, gen );
 
     // Generate first point x0 by sampling uniformly on the domain
     std::array<double, n> x0 = {};
@@ -252,22 +256,28 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
             double xR = std::pow( rn + coordGen() * ( rn2 - rn ),
                                   1.0 / static_cast<double>( n ) );
 
-            // Sample direction cosine angles uniformly in [0, pi] to get
-            // direction (see equations (10) and (11))
-            bool failed = false;
+            // Sample direction uniformly on unit sphere to get x 
+            // (equations (10) and (11))
             
-            // Keep track of x_1^2 + ... + x_{n-1}^2 to calculate
-            // the last component x_n
-            double sumOfSquares = 0.0;
-            for ( std::size_t axis = 0; axis < n - 1; ++axis )
+            // First generate standard normal point (z, but we can
+            // store temporarily in x)
+            double normXSquared = 0.0;
+            for ( std::size_t axis = 0; axis < n; ++axis )
             {
-                x[axis] =
-                    seedX[axis] + xR * std::cos( coordGen() * CabanaPD::pi );
-                sumOfSquares += x[axis] * x[axis];
+                x[axis] = normalGen();
+                normXSquared += x[axis] * x[axis];
+            }
+
+            // Normalize and calculate final x
+            double normX = std::sqrt(normXSquared);
+            bool failed = false;
+            for ( std::size_t axis = 0; axis < n; ++axis )
+            {
+                x[axis] = seedX[axis] + xR * x[axis] / normX;
                 idx[axis] =
                     static_cast<int>( std::floor( x[axis] / cellSize ) );
                 
-                // We can terminate early if the current component 
+                    // We can terminate early if the current component 
                 // is out of the domain
                 if ( x[axis] < 0 || x[axis] >= extent[axis] )
                 {
@@ -276,14 +286,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                 }
             }
 
-            // Generate last component (see equation (12)) of x
-            double sign = coordGen() < 0.5 ? -1.0 : 1.0;
-            x[n - 1] = sign * std::sqrt(xR * xR - sumOfSquares);
-            idx[n - 1] =
-                static_cast<int>( std::floor( x[n - 1] / cellSize ) );
-            
-            // Terminate early if x is not in the domain
-            if ( failed || x[n - 1] < 0 || x[n - 1] >= extent[n - 1] )
+            if ( failed )
             {
                 continue;
             }
