@@ -277,7 +277,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                 idx[axis] =
                     static_cast<int>( std::floor( x[axis] / cellSize ) );
                 
-                    // We can terminate early if the current component 
+                // We can terminate early if the current component 
                 // is out of the domain
                 if ( x[axis] < 0 || x[axis] >= extent[axis] )
                 {
