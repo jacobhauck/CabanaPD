@@ -1,17 +1,17 @@
 /**
- * Helper functions to support the polycrystal example by generating 
+ * Helper functions to support the polycrystal example by generating
  * Voronoi grain structures and providing a constant-time lookup
  * algorithm used to assign computational particles to grains.
- * 
+ *
  * Grain nucleation site generation uses Bridson's algorithm [1]
- * for Poisson disc sampling. Comments also reference custom 
+ * for Poisson disc sampling. Comments also reference custom
  * documentation describing the mathematics in greater detail.
- * 
+ *
  * References
  *   [1]: Robert Bridson. Fast Poisson disk sampling in arbitrary
  *          dimensions. In ACM SIGGRAPH 2007 Sketches, page 22,
  *          San Diego California, August, 2007. ACM.
- * 
+ *
  */
 
 #include <cmath>
@@ -21,7 +21,6 @@
 #include <random>
 
 #include <Kokkos_Core.hpp>
-
 
 // Get flat index into n-dim array (equations (7) and (8))
 //
@@ -38,7 +37,7 @@ int indexND( const std::array<int, n>& index, const std::array<int, n>& shape )
 {
     int outIndex = 0;
     int stride = 1;
-    
+
     // Calculate stride and contribution to index in the same loop
     for ( int axis = n - 1; axis >= 0; --axis )
     {
@@ -50,7 +49,7 @@ int indexND( const std::array<int, n>& index, const std::array<int, n>& shape )
 }
 
 // Check if N-dim array multi-index is valid
-// 
+//
 // Parameters
 // ----------
 // idx: a multi-index
@@ -83,7 +82,7 @@ bool isValid( const std::array<int, n>& idx, const std::array<int, n>& shape )
 // axis: which axis of the recursion we are on
 // curIndex: current starting multi-index in the axes that have already been
 //           generated
-// 
+//
 // Return
 // ------
 // outRelativeIndices: list of relative multi-indices of cells that can
@@ -116,13 +115,13 @@ void makeRelativeIndicesRecursive(
 }
 
 // Generate the set of *relative* multi-indices of grid cells that may
-// contain points within a distance r of a generated point in C 
-// (see equation (12)). 
+// contain points within a distance r of a generated point in C
+// (see equation (12)).
 //
 // Parameters
 // ----------
 // n: dimension of the domain
-// 
+//
 // Return
 // ------
 // outRelativeIndices: list of relative multi-indices of cells that can
@@ -132,7 +131,7 @@ void makeNeighborRelativeIndices(
     std::vector<std::array<int, n>>& outRelativeIndices )
 {
     // Start the recursion
-    std::array<int, n> curIndex = {};  // = (0, 0, ..., 0)
+    std::array<int, n> curIndex = {}; // = (0, 0, ..., 0)
     makeRelativeIndicesRecursive( 0, curIndex, outRelativeIndices );
 }
 
@@ -171,8 +170,10 @@ double distSquared( const std::array<double, n>& a,
 //
 // Return
 // ------
-// outPoints: list of sampled points satisfying PD1, PD2, and PD3 (approximately)
-// outGridShape: size of the lookup grid in each dimension (ceil(E_i/c))
+// outPoints: list of sampled points satisfying PD1, PD2, and PD3
+//            (approximately)
+// outGridShape: size of the lookup grid in each dimension
+//               (ceil(E_i/c))
 // outCellSize: size c of cells in lookup grid
 template <std::size_t n, class RNGType>
 void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
@@ -222,7 +223,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
     };
 
     // Store x0 location in grid and add to output list
-    grid[indexND( idx0, gridShape )] = 0; 
+    grid[indexND( idx0, gridShape )] = 0;
     outPoints.push_back( x0 );
 
     // Initialize active set
@@ -231,7 +232,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
     // Main sampling loop
     while ( activeSet.size() > 0 )
     {
-        // Create uniform distribution on active set indices to sample a 
+        // Create uniform distribution on active set indices to sample a
         // random point from the active set
         std::uniform_int_distribution<int> pointDist( 0, activeSet.size() - 1 );
         int seedIndexInActive = pointDist( gen );
@@ -252,13 +253,14 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
             std::array<double, n> x = {};
             std::array<int, n> idx = {};
 
-            // Use inverse CDF method to sample distance from seed (equation (9))
+            // Use inverse CDF method to sample distance from seed (equation
+            // (9))
             double xR = std::pow( rn + coordGen() * ( rn2 - rn ),
                                   1.0 / static_cast<double>( n ) );
 
-            // Sample direction uniformly on unit sphere to get x 
+            // Sample direction uniformly on unit sphere to get x
             // (equations (10) and (11))
-            
+
             // First generate standard normal point (z, but we can
             // store temporarily in x)
             double normXSquared = 0.0;
@@ -269,15 +271,15 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
             }
 
             // Normalize and calculate final x
-            double normX = std::sqrt(normXSquared);
+            double normX = std::sqrt( normXSquared );
             bool failed = false;
             for ( std::size_t axis = 0; axis < n; ++axis )
             {
                 x[axis] = seedX[axis] + xR * x[axis] / normX;
                 idx[axis] =
                     static_cast<int>( std::floor( x[axis] / cellSize ) );
-                
-                // We can terminate early if the current component 
+
+                // We can terminate early if the current component
                 // is out of the domain
                 if ( x[axis] < 0 || x[axis] >= extent[axis] )
                 {
@@ -291,13 +293,13 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                 continue;
             }
 
-            // Check if point is too close to any existing points 
+            // Check if point is too close to any existing points
             // (line 9 in Algorithm 1)
             std::array<int, n> checkIdx = idx;
 
             // This flag is set if point in C too close to x is found
             bool isClose = false;
-            
+
             // Loop over precomputed relative indices
             for ( const std::array<int, n>& relIdx : nbrIndicesRel )
             {
@@ -307,13 +309,13 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                     checkIdx[axis] = idx[axis] + relIdx[axis];
                 }
 
-                // Skip the current check cell (leave isClose = false) if 
+                // Skip the current check cell (leave isClose = false) if
                 // it is outside of the domain
                 if ( !isValid( checkIdx, gridShape ) )
                 {
                     continue;
                 }
-                
+
                 // Look up which point, if any, is in the current check cell
                 int checkPoint = grid[indexND( checkIdx, gridShape )];
                 if ( checkPoint == -1 )
@@ -322,7 +324,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
                     continue;
                 }
 
-                // We found an existing point in this check cell, so 
+                // We found an existing point in this check cell, so
                 // now check precisely if it is too close to x
                 const std::array<double, n>& checkX = outPoints[checkPoint];
 
@@ -359,7 +361,7 @@ void poissonDiscSampling( const std::array<double, n>& extent, double r, int k,
     }
     // Loop terminates when the domain is mostly filled (PD2 almost satisfied)
     // and output points are stored in outPoints
-    
+
     // Set grid shape and cell size return values
     outGridShape = gridShape;
     outCellSize = cellSize;
@@ -407,7 +409,7 @@ void getPolycrystalGrains( const std::array<double, 3>& extent,
 template <typename GrainGridType, typename GrainPosType>
 struct FindClosestGrainFunctor
 {
-    // Kokkos view storing the lookup grid, 
+    // Kokkos view storing the lookup grid,
     // size = (E_1, E_2, E_3) = (sizeX, sizeY, sizeZ)
     GrainGridType grainGrid;
 
@@ -424,7 +426,7 @@ struct FindClosestGrainFunctor
     int sizeX;
     int sizeY;
     int sizeZ;
-    
+
     // Physical size of lookup grid cells
     double grainGridCellSize;
 
@@ -460,7 +462,7 @@ struct FindClosestGrainFunctor
         int guessIndex = -1;
         while ( guessIndex == -1 )
         {
-            // The cubic shell consists of 6 planes. We search the 2 planes 
+            // The cubic shell consists of 6 planes. We search the 2 planes
             // perpindicular to each axis in separate loops.
 
             // X planes -- loop over multi-index components of cells
@@ -476,14 +478,14 @@ struct FindClosestGrainFunctor
                     // Search plane in negative X direction
                     int sx = Kokkos::max( gx - shellRadius, 0 );
                     guessIndex = grainGrid( sx, sy, sz );
-                    // Any nonnegative index in the lookup grid indicates a point
-                    // in the cell with multi-index (sx, sy, sz)
+                    // Any nonnegative index in the lookup grid indicates a
+                    // point in the cell with multi-index (sx, sy, sz)
                     if ( guessIndex >= 0 )
                     {
                         sy = Kokkos::min( gy + shellRadius, sizeY - 1 ) + 1;
                         break;
                     }
-                    
+
                     // Search plane in positive X direction
                     sx = Kokkos::min( gx + shellRadius, sizeX - 1 );
                     guessIndex = grainGrid( sx, sy, sz );
@@ -563,7 +565,7 @@ struct FindClosestGrainFunctor
         double guessDZ = grainPos( guessIndex, 2 ) - z;
         double dist = Kokkos::sqrt( guessDX * guessDX + guessDY * guessDY +
                                     guessDZ * guessDZ );
-            
+
         // Now calculate the size of a box of cells around (x, y, z)
         // that contains the guess point and any points that might be
         // closer
@@ -587,13 +589,14 @@ struct FindClosestGrainFunctor
                     int testIndex = grainGrid( sx, sy, sz );
                     // If this cell contains a point, then check if it is
                     // closer to (x, y, z) than the current closest
-                    if(testIndex >= 0)
+                    if ( testIndex >= 0 )
                     {
                         double testDX = grainPos( testIndex, 0 ) - x;
                         double testDY = grainPos( testIndex, 1 ) - y;
                         double testDZ = grainPos( testIndex, 2 ) - z;
-                        double testDist = Kokkos::sqrt(
-                            testDX * testDX + testDY * testDY + testDZ * testDZ );
+                        double testDist =
+                            Kokkos::sqrt( testDX * testDX + testDY * testDY +
+                                          testDZ * testDZ );
                         if ( testDist < closestDist )
                         {
                             closestDist = testDist;
