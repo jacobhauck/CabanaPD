@@ -66,7 +66,7 @@ void polycrystalExample( const std::string filename )
     std::vector<std::array<double, 3>> grainPosStd;
     std::array<int, 3> grainGridShape;
     double grainGridCellSize;
-    
+
     // Generate grains relative to the origin
     getPolycrystalGrains( extent, grainSize, grainPosStd, grainGridShape,
                           grainGridCellSize );
@@ -79,7 +79,7 @@ void polycrystalExample( const std::string filename )
     Kokkos::View<int***, Kokkos::HostSpace> grainGridHost(
         Kokkos::ViewAllocateWithoutInitializing( "Host grain grid" ),
         grainGridShape[0], grainGridShape[1], grainGridShape[2] );
-    
+
     // Initialize lookup grid empty (all -1 indices)
     Kokkos::deep_copy( grainGridHost, -1 );
 
@@ -151,7 +151,7 @@ void polycrystalExample( const std::string filename )
     auto f = particles.sliceForce();
     auto nofail = particles.sliceNoFail();
     auto type = particles.sliceType();
-    
+
     // Initialize functor to find closest grains during particle init
     FindClosestGrainFunctor findClosest( grainGrid, grainPos, low_corner,
                                          grainGridShape, grainGridCellSize );
